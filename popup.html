@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    
+    body { 
+      width: 440px; 
+      min-height: 500px;
+      max-height: 600px;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+      background: #F2F2F7; 
+      color: #1D1D1F;
+      -webkit-font-smoothing: antialiased;
+      overflow: hidden;
+    }
+    
+    /* Header */
+    .header { 
+      background: white;
+      padding: 16px;
+      border-bottom: 0.5px solid #C6C6C8;
+    }
+    .header-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 8px;
+    }
+    .header-title {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .header-icon {
+      width: 32px;
+      height: 32px;
+      background: #34A853;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
+    }
+    .header h1 { 
+      font-size: 18px; 
+      font-weight: 700; 
+      letter-spacing: -0.3px;
+    }
+    .header-status {
+      font-size: 12px;
+      color: #86868B;
+    }
+    
+    /* Controls */
+    .controls {
+      padding: 12px 16px;
+      background: white;
+      border-bottom: 0.5px solid #C6C6C8;
+    }
+    .controls-row {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+    .controls-row:last-child { margin-bottom: 0; }
+    
+    .btn { 
+      padding: 10px 16px;
+      border: none;
+      border-radius: 10px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+    }
+    .btn:active { transform: scale(0.98); }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    
+    .btn-primary {
+      background: #34A853;
+      color: white;
+      flex: 1;
+    }
+    .btn-primary:hover { background: #2D8E47; }
+    
+    .btn-secondary {
+      background: #F2F2F7;
+      color: #1D1D1F;
+      flex: 1;
+    }
+    .btn-secondary:hover { background: #E8E8ED; }
+    
+    .btn-blue {
+      background: #007AFF;
+      color: white;
+      flex: 1;
+    }
+    .btn-blue:hover { background: #0066CC; }
+    
+    .btn-outline {
+      background: transparent;
+      color: #34A853;
+      border: 1.5px solid #34A853;
+      flex: 1;
+    }
+    .btn-outline:hover { background: #E8F5E9; }
+    
+    /* Checkbox */
+    .checkbox-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      color: #86868B;
+    }
+    .checkbox-row input[type="checkbox"] {
+      accent-color: #34A853;
+    }
+    .checkbox-row label { cursor: pointer; }
+    
+    /* Stats */
+    .stats {
+      display: flex;
+      gap: 12px;
+      padding: 10px 16px;
+      background: #E8F5E9;
+    }
+    .stat-item {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 12px;
+      font-weight: 600;
+      color: #2E7D32;
+    }
+    .stat-icon { font-size: 14px; }
+    
+    /* Progress */
+    .progress {
+      display: none;
+      padding: 8px 16px;
+      background: #FFF8E1;
+    }
+    .progress.active { display: block; }
+    .progress-text {
+      font-size: 12px;
+      color: #F57F17;
+      margin-bottom: 4px;
+    }
+    .progress-bar {
+      height: 3px;
+      background: #FFE082;
+      border-radius: 2px;
+      overflow: hidden;
+    }
+    .progress-fill {
+      height: 100%;
+      background: #F57F17;
+      border-radius: 2px;
+      transition: width 0.3s;
+      width: 0%;
+    }
+    
+    /* Results Table */
+    .results-container {
+      flex: 1;
+      overflow-y: auto;
+      max-height: 350px;
+    }
+    .results-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 11px;
+    }
+    .results-table th {
+      position: sticky;
+      top: 0;
+      background: #F2F2F7;
+      padding: 8px 6px;
+      text-align: left;
+      font-weight: 600;
+      color: #86868B;
+      font-size: 10px;
+      text-transform: uppercase;
+      border-bottom: 0.5px solid #C6C6C8;
+      z-index: 1;
+    }
+    .results-table td {
+      padding: 8px 6px;
+      border-bottom: 0.5px solid #E8E8ED;
+      vertical-align: top;
+      max-width: 120px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .results-table tr:hover td {
+      background: #F2F2F7;
+    }
+    .rating {
+      color: #FBBC04;
+      font-weight: 600;
+    }
+    .phone { color: #007AFF; }
+    .website { color: #34A853; }
+    .email { color: #EA4335; }
+    
+    /* Empty State */
+    .empty-state {
+      text-align: center;
+      padding: 40px 16px;
+      color: #86868B;
+    }
+    .empty-icon {
+      font-size: 48px;
+      margin-bottom: 12px;
+    }
+    .empty-title {
+      font-size: 16px;
+      font-weight: 600;
+      color: #1D1D1F;
+      margin-bottom: 4px;
+    }
+    .empty-text {
+      font-size: 13px;
+    }
+    
+    /* Footer */
+    .footer {
+      position: sticky;
+      bottom: 0;
+      background: white;
+      padding: 10px 16px;
+      border-top: 0.5px solid #C6C6C8;
+      display: flex;
+      gap: 8px;
+    }
+    
+    /* Not Maps page */
+    .not-maps {
+      text-align: center;
+      padding: 48px 24px;
+    }
+    .not-maps-icon {
+      font-size: 64px;
+      margin-bottom: 16px;
+    }
+    .not-maps h2 {
+      font-size: 18px;
+      font-weight: 600;
+      margin-bottom: 8px;
+    }
+    .not-maps p {
+      font-size: 13px;
+      color: #86868B;
+      margin-bottom: 16px;
+    }
+  </style>
+</head>
+<body>
+  <!-- Header -->
+  <div class="header">
+    <div class="header-top">
+      <div class="header-title">
+        <div class="header-icon">📍</div>
+        <h1>Maps Lead Scraper</h1>
+      </div>
+      <div class="header-count" id="lead-count">0 leads</div>
+    </div>
+    <div class="header-status" id="header-status">Ready</div>
+  </div>
+  
+  <!-- Controls -->
+  <div class="controls">
+    <div class="controls-row">
+      <button class="btn btn-primary" id="btn-scrape">
+        <span>🔍</span>
+        <span>Scrape Listings</span>
+      </button>
+      <button class="btn btn-blue" id="btn-details" disabled>
+        <span>📋</span>
+        <span>Get Details</span>
+      </button>
+    </div>
+    <div class="controls-row">
+      <div class="checkbox-row">
+        <input type="checkbox" id="auto-scroll" checked>
+        <label for="auto-scroll">Auto-scroll to load more</label>
+      </div>
+      <div class="checkbox-row" style="margin-left:12px;">
+        <input type="checkbox" id="extract-emails">
+        <label for="extract-emails">Extract emails</label>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Stats -->
+  <div class="stats" id="stats" style="display:none;">
+    <div class="stat-item">
+      <span class="stat-icon">📊</span>
+      <span id="stat-total">0</span> total
+    </div>
+    <div class="stat-item">
+      <span class="stat-icon">📞</span>
+      <span id="stat-phone">0</span> with phone
+    </div>
+    <div class="stat-item">
+      <span class="stat-icon">🌐</span>
+      <span id="stat-website">0</span> with website
+    </div>
+    <div class="stat-item">
+      <span class="stat-icon">⭐</span>
+      <span id="stat-avg-rating">0</span> avg rating
+    </div>
+  </div>
+  
+  <!-- Progress -->
+  <div class="progress" id="progress">
+    <div class="progress-text" id="progress-text">Scraping...</div>
+    <div class="progress-bar">
+      <div class="progress-fill" id="progress-fill"></div>
+    </div>
+  </div>
+  
+  <!-- Results -->
+  <div class="results-container" id="results-container">
+    <div class="empty-state" id="empty-state">
+      <div class="empty-icon">🗺️</div>
+      <div class="empty-title">Google Maps Lead Scraper</div>
+      <div class="empty-text">Search for businesses on Google Maps, then click "Scrape Listings" to extract leads</div>
+    </div>
+    <table class="results-table" id="results-table" style="display:none;">
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Name</th>
+          <th>Category</th>
+          <th>Rating</th>
+          <th>Phone</th>
+          <th>Website</th>
+        </tr>
+      </thead>
+      <tbody id="results-body"></tbody>
+    </table>
+  </div>
+  
+  <!-- Footer -->
+  <div class="footer">
+    <button class="btn btn-outline" id="btn-export-csv" disabled>
+      <span>📄</span>
+      <span>CSV</span>
+    </button>
+    <button class="btn btn-primary" id="btn-export-xlsx" disabled>
+      <span>📊</span>
+      <span>Export Excel</span>
+    </button>
+    <button class="btn btn-secondary" id="btn-clear" disabled>
+      <span>🗑️</span>
+      <span>Clear</span>
+    </button>
+  </div>
+  
+  <!-- Not Maps page (hidden by default) -->
+  <div class="not-maps" id="not-maps" style="display:none;">
+    <div class="not-maps-icon">🗺️</div>
+    <h2>Open Google Maps</h2>
+    <p>Navigate to Google Maps and search for businesses to start scraping leads.</p>
+    <button class="btn btn-primary" id="btn-open-maps" style="display:inline-flex;">
+      <span>Open Google Maps</span>
+    </button>
+  </div>
+  
+  <script src="popup.js"></script>
+</body>
+</html>
