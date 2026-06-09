@@ -226,13 +226,154 @@ function exportCSV() {
 
 function exportExcel() {
   if (!leads.length) return;
-  const h = ['No','Name','Category','Rating','Reviews','Address','Phone','Website','Email','Hours','Price','URL','Lat','Lng'];
-  let x = '<?xml version="1.0"?>\n<?mso-application progid="Excel.Sheet"?>\n<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">\n<Worksheet ss:Name="Leads"><Table>\n';
-  x += '<Row>'+h.map(c=>`<Cell><Data ss:Type="String">${c}</Data></Cell>`).join('')+'</Row>\n';
-  for(let i=0;i<leads.length;i++){const l=leads[i];x+=`<Row><Cell><Data ss:Type="Number">${i+1}</Data></Cell>${[l.name,l.category,l.rating,l.reviews,l.address,l.phone,l.website,l.email,l.hours,l.priceLevel,l.url,l.lat,l.lng].map(v=>`<Cell><Data ss:Type="${typeof v==='number'?'Number':'String'}">${xe(v)}</Data></Cell>`).join('')}</Row>\n`;}
-  x += '</Table></Worksheet></Workbook>';
-  download(x, `leads_${date()}.xls`, 'application/vnd.ms-excel');
+  
+  const headers = ['No','Name','Category','Rating','Reviews','Address','Phone','Website','Email','Hours','Price','URL','Lat','Lng'];
+  
+  // Build sheet XML
+  let sheet = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n';
+  sheet += '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>\n';
+  
+  // Header row
+  sheet += '<row r="1">';
+  headers.forEach((h, i) => {
+    const col = String.fromCharCode(65 + i); // A, B, C...
+    sheet += `<c r="${col}1" t="inlineStr"><is><t>${xe(h)}</t></is></c>`;
+  });
+  sheet += '</row>\n';
+  
+  // Data rows
+  for (let r = 0; r < leads.length; r++) {
+    const l = leads[r];
+    const rowNum = r + 2;
+    const vals = [r+1, l.name||'', l.category||'', l.rating||0, l.reviews||0, l.address||'', l.phone||'', l.website||'', l.email||'', l.hours||'', l.priceLevel||'', l.url||'', l.lat||0, l.lng||0];
+    
+    sheet += `<row r="${rowNum}">`;
+    vals.forEach((v, i) => {
+      const col = String.fromCharCode(65 + i);
+      const isNum = typeof v === 'number';
+      sheet += `<c r="${col}${rowNum}"${isNum ? '' : ' t="inlineStr"'}>${isNum ? `<v>${v}</v>` : `<is><t>${xe(v)}</t></is>`}</c>`;
+    });
+    sheet += '</row>\n';
+  }
+  
+  sheet += '</sheetData></worksheet>';
+  
+  // Build XLSX (ZIP with specific XML files)
+  const files = {};
+  files['[Content_Types].xml'] = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/></Types>';
+  
+  files['_rels/.rels'] = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>';
+  
+  files['xl/workbook.xml'] = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="Leads" sheetId="1" r:id="rId1"/></sheets></workbook>';
+  
+  files['xl/_rels/workbook.xml.rels'] = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/></Relationships>';
+  
+  files['xl/worksheets/sheet1.xml'] = sheet;
+  
+  // Create ZIP
+  const zip = createZip(files);
+  const blob = new Blob([zip], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  chrome.downloads.download({ url: URL.createObjectURL(blob), filename: `leads_${date()}.xlsx`, saveAs: true });
   toast('Excel exported');
+}
+
+// Minimal ZIP file creator (no compression, stored method)
+function createZip(files) {
+  const entries = [];
+  let offset = 0;
+  
+  // Local file headers + data
+  for (const [name, content] of Object.entries(files)) {
+    const nameBytes = new TextEncoder().encode(name);
+    const dataBytes = new TextEncoder().encode(content);
+    const crc = crc32(dataBytes);
+    
+    // Local file header
+    const header = new ArrayBuffer(30 + nameBytes.length);
+    const h = new DataView(header);
+    h.setUint32(0, 0x04034b50, true); // signature
+    h.setUint16(4, 20, true); // version needed
+    h.setUint16(6, 0, true); // flags
+    h.setUint16(8, 0, true); // compression (stored)
+    h.setUint16(10, 0, true); // mod time
+    h.setUint16(12, 0, true); // mod date
+    h.setUint32(14, crc, true); // crc32
+    h.setUint32(18, dataBytes.length, true); // compressed size
+    h.setUint32(22, dataBytes.length, true); // uncompressed size
+    h.setUint16(26, nameBytes.length, true); // name length
+    h.setUint16(28, 0, true); // extra length
+    new Uint8Array(header).set(nameBytes, 30);
+    
+    entries.push({ nameBytes, dataBytes, crc, offset, header });
+    offset += header.byteLength + dataBytes.length;
+  }
+  
+  // Central directory
+  const centralDir = [];
+  let centralSize = 0;
+  const centralOffset = offset;
+  
+  for (const entry of entries) {
+    const cd = new ArrayBuffer(46 + entry.nameBytes.length);
+    const c = new DataView(cd);
+    c.setUint32(0, 0x02014b50, true); // signature
+    c.setUint16(4, 20, true); // version made by
+    c.setUint16(6, 20, true); // version needed
+    c.setUint16(8, 0, true); // flags
+    c.setUint16(10, 0, true); // compression
+    c.setUint16(12, 0, true); // mod time
+    c.setUint16(14, 0, true); // mod date
+    c.setUint32(16, entry.crc, true); // crc32
+    c.setUint32(20, entry.dataBytes.length, true); // compressed
+    c.setUint32(24, entry.dataBytes.length, true); // uncompressed
+    c.setUint16(28, entry.nameBytes.length, true); // name length
+    c.setUint16(30, 0, true); // extra
+    c.setUint16(32, 0, true); // comment
+    c.setUint16(34, 0, true); // disk
+    c.setUint16(36, 0, true); // internal attrs
+    c.setUint32(38, 0, true); // external attrs
+    c.setUint32(42, entry.offset, true); // local header offset
+    new Uint8Array(cd).set(entry.nameBytes, 46);
+    
+    centralDir.push(cd);
+    centralSize += cd.byteLength;
+  }
+  
+  // End of central directory
+  const eocd = new ArrayBuffer(22);
+  const e = new DataView(eocd);
+  e.setUint32(0, 0x06054b50, true); // signature
+  e.setUint16(4, 0, true); // disk
+  e.setUint16(6, 0, true); // disk start
+  e.setUint16(8, entries.length, true); // entries on disk
+  e.setUint16(10, entries.length, true); // total entries
+  e.setUint32(12, centralSize, true); // central dir size
+  e.setUint32(16, centralOffset, true); // central dir offset
+  e.setUint16(20, 0, true); // comment length
+  
+  // Combine all parts
+  const parts = [];
+  for (const entry of entries) {
+    parts.push(new Uint8Array(entry.header));
+    parts.push(entry.dataBytes);
+  }
+  for (const cd of centralDir) {
+    parts.push(new Uint8Array(cd));
+  }
+  parts.push(new Uint8Array(eocd));
+  
+  return new Blob(parts);
+}
+
+function crc32(bytes) {
+  let crc = 0xFFFFFFFF;
+  for (let i = 0; i < bytes.length; i++) {
+    crc ^= bytes[i];
+    for (let j = 0; j < 8; j++) {
+      crc = (crc >>> 1) ^ (crc & 1 ? 0xEDB88320 : 0);
+    }
+  }
+  return (crc ^ 0xFFFFFFFF) >>> 0;
 }
 
 function exportSheets() {
