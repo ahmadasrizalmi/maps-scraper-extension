@@ -273,7 +273,8 @@
           // Step 1: Scroll
           if (opts.scroll) {
             chrome.runtime.sendMessage({ type:'PROGRESS', stage:'scrolling', percent:0, text:'Scrolling...' }).catch(()=>{});
-            await autoScroll(30, p => {
+            const maxScrolls = opts.maxListings > 0 ? Math.ceil(opts.maxListings * 0.8) : 30;
+            await autoScroll(maxScrolls, p => {
               chrome.runtime.sendMessage({ type:'PROGRESS', stage:'scrolling', percent:p.percent, text:`Scrolling... ${p.found} found (${p.current}/${p.max})` }).catch(()=>{});
             });
           }
@@ -282,6 +283,7 @@
           // Step 2: Scrape
           chrome.runtime.sendMessage({ type:'PROGRESS', stage:'scraping', percent:100, text:'Scraping...' }).catch(()=>{});
           let leads = scrapeListings();
+          console.log(`[Maps Scraper] Found ${leads.length} listings from DOM`);
           
           // Limit
           if (opts.maxListings > 0 && leads.length > opts.maxListings) leads = leads.slice(0, opts.maxListings);
