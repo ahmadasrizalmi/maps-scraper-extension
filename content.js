@@ -1,5 +1,6 @@
-// Maps Lead Scraper — Content Script v3.1
+// Maps Lead Scraper — Content Script v3.2
 // TESTED on live Google Maps — selectors verified
+// Focus: Name, Category, Rating, Address, Phone, Website, Email
 
 (() => {
   'use strict';
@@ -14,7 +15,6 @@
     const results = [];
     const seen = new Set();
     
-    // Get all listing cards (role="article" contains the full data)
     const articles = document.querySelectorAll('[role="article"]');
     
     for (const article of articles) {
@@ -23,48 +23,44 @@
         if (!link) continue;
         
         const lead = {
-          name:'', category:'', rating:0, reviews:0,
-          address:'', phone:'', website:'', email:'',
-          hours:'', priceLevel:'', url:'', lat:0, lng:0
+          name:'', category:'', rating:0,
+          address:'', phone:'', website:'', email:''
         };
         
         // URL
         lead.url = link.href;
-        const coord = lead.url.match(/!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/);
-        if (coord) { lead.lat = parseFloat(coord[1]); lead.lng = parseFloat(coord[2]); }
         
-        // Name: aria-label of the link, or .qBF1Pd
+        // Name: aria-label of the link
         lead.name = link.getAttribute('aria-label') || 
                      article.querySelector('.qBF1Pd, .fontHeadlineSmall')?.textContent?.trim() || '';
         
         // Full text for parsing
         const fullText = clean(article.textContent);
         
-        // Rating: "X.X" pattern in .W4Efsd or .MW4etd
-        const ratingEl = article.querySelector('.MW4etd, .W4Efsd');
-        if (ratingEl) {
-          const val = parseFloat(ratingEl.textContent);
-          if (val >= 1 && val <= 5) lead.rating = val;
+        // Rating: image alt "X.X stars" or .MW4etd
+        const ratingImg = article.querySelector('img[alt*="stars"]');
+        if (ratingImg) {
+          const m = ratingImg.alt.match(/(\d\.\d)/);
+          if (m) lead.rating = parseFloat(m[1]);
+        }
+        if (!lead.rating) {
+          const ratingEl = article.querySelector('.MW4etd');
+          if (ratingEl) {
+            const val = parseFloat(ratingEl.textContent);
+            if (val >= 1 && val <= 5) lead.rating = val;
+          }
         }
         
-        // Reviews: "(X)" pattern
-        const reviewsEl = article.querySelector('.UY7F9');
-        if (reviewsEl) {
-          const m = reviewsEl.textContent.match(/[\d,.]+/);
-          if (m) lead.reviews = parseInt(m[0].replace(/[.,]/g,''));
-        }
-        
-        // Category: look for known keywords in the text
-        const catWords = ['Coffee','Kafe','Restoran','Toko','Klinik','Hotel','Cafe','Spa','Salon','Gym','Studio','Warung','Mall','Bengkel','Apotek','Restaurant','Store','Shop','Clinic','Bar','Agency'];
+        // Category: text after name, before address
         const lines = fullText.split(/·/).map(l=>l.trim());
         for (const line of lines) {
-          if (catWords.some(w => line.toLowerCase().includes(w.toLowerCase()))) {
-            lead.category = line.split(/·/)[0].trim();
+          if (line.length > 2 && line.length < 40 && !line.match(/\d{3,}/) && !line.match(/\b(St|Jl|Jalan|Rw|RT|No\.)\b/i)) {
+            lead.category = line;
             break;
           }
         }
         
-        // Address: from full text (after category, usually contains "St" or "Jl" or "Rw")
+        // Address: contains street keywords
         for (const line of lines) {
           if (line.match(/\b(St|Jl|Jalan|Rw|RT|No\.|City|Jakarta|Bandung|Surabaya)\b/i) && line.length > 10) {
             lead.address = clean(line);
@@ -93,21 +89,13 @@
     // Category: .DkEaL button
     d.category = document.querySelector('.DkEaL')?.textContent?.trim() || '';
     
-    // Rating: .MW4etd in the detail panel (not from search results)
-    // We need to find the rating that's inside the main detail area
-    const mainPanel = document.querySelector('[role="main"]');
+    // Rating: .MW4etd in the main detail area
+    const mainPanel = document.querySelector('main[aria-label]');
     if (mainPanel) {
       const ratingEl = mainPanel.querySelector('.MW4etd');
       if (ratingEl) {
         const val = parseFloat(ratingEl.textContent);
         if (val >= 1 && val <= 5) d.rating = val;
-      }
-      
-      // Reviews: .UY7F9
-      const reviewsEl = mainPanel.querySelector('.UY7F9');
-      if (reviewsEl) {
-        const m = reviewsEl.textContent.match(/[\d,.]+/);
-        if (m) d.reviews = parseInt(m[0].replace(/[.,]/g,''));
       }
     }
     
@@ -138,27 +126,18 @@
       }
     }
     
-    // Hours: data-item-id contains "hours"
-    const hoursEl = document.querySelector('[data-item-id*="hours"] button') || 
-                    document.querySelector('[data-item-id*="hours"]');
-    if (hoursEl) {
-      d.hours = clean(hoursEl.getAttribute('aria-label') || hoursEl.textContent);
-    }
-    
     return d;
   }
 
   // ─── Click listing → scrape detail → go back ──────────────────────
   
   async function processOneListing(cardLink) {
-    // Scroll into view
     cardLink.scrollIntoView({ behavior:'instant', block:'center' });
     await wait(200);
     
-    // Click
     cardLink.click();
     
-    // Wait for detail panel (.DUwDvf to appear with business name)
+    // Wait for detail panel (.DUwDvf to appear)
     let name = '';
     for (let i = 0; i < 15; i++) {
       await wait(300);
@@ -183,7 +162,6 @@
       }
     }
     
-    // Scrape
     const details = scrapeDetailPanel();
     
     // Click Back
@@ -215,7 +193,7 @@
     return count;
   }
 
-  // ─── Extract email ────────────────────────────────────────────────
+  // ─── Extract email from website ───────────────────────────────────
   
   async function extractEmail(url) {
     if (!url?.startsWith('http')) return [];
@@ -290,7 +268,7 @@
           
           if (shouldCancel) { sendResponse({ cancelled:true }); return; }
           
-          // Step 3: Details
+          // Step 3: Details (click each listing → scrape detail → back)
           if (opts.details && leads.length > 0) {
             const total = leads.length;
             const t0 = Date.now();
@@ -342,5 +320,5 @@
     }
   });
 
-  console.log('[Maps Lead Scraper] Content script v3.1 loaded — TESTED');
+  console.log('[Maps Lead Scraper] Content script v3.2 loaded — focused on phone + email');
 })();
