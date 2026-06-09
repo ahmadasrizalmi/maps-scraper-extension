@@ -1,342 +1,255 @@
-// Maps Lead Scraper — Content Script v3.0
-// TESTED APPROACH: click → scrape detail → click Back → scroll → repeat
+// Maps Lead Scraper — Content Script v3.1
+// TESTED on live Google Maps — selectors verified
 
 (() => {
   'use strict';
 
   let shouldCancel = false;
-
   const wait = ms => new Promise(r => setTimeout(r, ms));
+  const clean = t => (t||'').replace(/[\ue000-\uf8ff]/g,'').replace(/\n+/g,' ').replace(/\s+/g,' ').trim();
 
-  function clean(text) {
-    return (text || '').replace(/[\ue000-\uf8ff]/g, '').replace(/\n+/g, ' ').replace(/\s+/g, ' ').trim();
-  }
-
-  // ─── Scrape Basic Data from Search Results Sidebar ────────────────
+  // ─── Scrape Listings from Sidebar ─────────────────────────────────
   
   function scrapeListings() {
     const results = [];
     const seen = new Set();
     
-    // Each listing card is an <a> with href containing /maps/place/
-    const cards = document.querySelectorAll('a[href*="/maps/place/"]');
+    // Get all listing cards (role="article" contains the full data)
+    const articles = document.querySelectorAll('[role="article"]');
     
-    for (const card of cards) {
+    for (const article of articles) {
       try {
+        const link = article.querySelector('a[href*="/maps/place/"]');
+        if (!link) continue;
+        
         const lead = {
-          name: '', category: '', rating: 0, reviews: 0,
-          address: '', phone: '', website: '', email: '',
-          hours: '', priceLevel: '', url: '', lat: 0, lng: 0
+          name:'', category:'', rating:0, reviews:0,
+          address:'', phone:'', website:'', email:'',
+          hours:'', priceLevel:'', url:'', lat:0, lng:0
         };
         
         // URL
-        lead.url = card.href;
-        const coordMatch = lead.url.match(/!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/);
-        if (coordMatch) {
-          lead.lat = parseFloat(coordMatch[1]);
-          lead.lng = parseFloat(coordMatch[2]);
-        }
+        lead.url = link.href;
+        const coord = lead.url.match(/!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/);
+        if (coord) { lead.lat = parseFloat(coord[1]); lead.lng = parseFloat(coord[2]); }
         
-        // Get all text from the card
-        const allText = clean(card.textContent);
-        const lines = allText.split(/·/).map(l => l.trim()).filter(Boolean);
+        // Name: aria-label of the link, or .qBF1Pd
+        lead.name = link.getAttribute('aria-label') || 
+                     article.querySelector('.qBF1Pd, .fontHeadlineSmall')?.textContent?.trim() || '';
         
-        // Name: first line that's not a number and not too short
-        for (const line of lines) {
-          if (line.length > 2 && !line.match(/^[\d.]+$/) && !line.match(/^\([\d,.]+\)$/)) {
-            lead.name = line;
-            break;
-          }
-        }
+        // Full text for parsing
+        const fullText = clean(article.textContent);
         
-        // Category: look for known keywords
-        const catWords = ['Kedai','Kafe','Restoran','Toko','Klinik','Hotel','Coffee','Restaurant','Store','Shop','Clinic','Cafe','Spa','Salon','Gym','Studio','Agency','Warung','Mall','Bengkel','Apotek','Kantor','Photography','Aesthetic'];
-        for (const line of lines) {
-          if (catWords.some(w => line.toLowerCase().includes(w.toLowerCase()))) {
-            lead.category = line;
-            break;
-          }
-        }
-        
-        // Rating: "X.X" pattern
-        const ratingMatch = allText.match(/(\d\.\d)/);
-        if (ratingMatch) {
-          const val = parseFloat(ratingMatch[1]);
+        // Rating: "X.X" pattern in .W4Efsd or .MW4etd
+        const ratingEl = article.querySelector('.MW4etd, .W4Efsd');
+        if (ratingEl) {
+          const val = parseFloat(ratingEl.textContent);
           if (val >= 1 && val <= 5) lead.rating = val;
         }
         
-        // Reviews: "(X.XXX)" or "(XXX)" pattern
-        const reviewsMatch = allText.match(/\(([\d,.]+)\)/);
-        if (reviewsMatch) {
-          lead.reviews = parseInt(reviewsMatch[1].replace(/[.,]/g, ''));
+        // Reviews: "(X)" pattern
+        const reviewsEl = article.querySelector('.UY7F9');
+        if (reviewsEl) {
+          const m = reviewsEl.textContent.match(/[\d,.]+/);
+          if (m) lead.reviews = parseInt(m[0].replace(/[.,]/g,''));
         }
         
-        // Deduplicate by name
+        // Category: look for known keywords in the text
+        const catWords = ['Coffee','Kafe','Restoran','Toko','Klinik','Hotel','Cafe','Spa','Salon','Gym','Studio','Warung','Mall','Bengkel','Apotek','Restaurant','Store','Shop','Clinic','Bar','Agency'];
+        const lines = fullText.split(/·/).map(l=>l.trim());
+        for (const line of lines) {
+          if (catWords.some(w => line.toLowerCase().includes(w.toLowerCase()))) {
+            lead.category = line.split(/·/)[0].trim();
+            break;
+          }
+        }
+        
+        // Address: from full text (after category, usually contains "St" or "Jl" or "Rw")
+        for (const line of lines) {
+          if (line.match(/\b(St|Jl|Jalan|Rw|RT|No\.|City|Jakarta|Bandung|Surabaya)\b/i) && line.length > 10) {
+            lead.address = clean(line);
+            break;
+          }
+        }
+        
         if (lead.name && !seen.has(lead.name)) {
           seen.add(lead.name);
           results.push(lead);
         }
-        
-      } catch (e) {}
+      } catch(e) {}
     }
     
     return results;
   }
 
-  // ─── Scrape Detail Panel (after clicking a listing) ───────────────
+  // ─── Scrape Detail Panel ──────────────────────────────────────────
   
   function scrapeDetailPanel() {
-    const detail = {};
+    const d = {};
     
-    // === NAME ===
-    // h1 is the most reliable for the business name
-    const h1 = document.querySelector('h1');
-    if (h1) detail.name = clean(h1.textContent);
+    // Name: .DUwDvf is the business name in detail panel
+    d.name = document.querySelector('.DUwDvf')?.textContent?.trim() || '';
     
-    // === CATEGORY ===
-    // Usually a button right below h1, or in a span near h1
-    const h1Parent = h1?.parentElement;
-    if (h1Parent) {
-      const siblings = h1Parent.querySelectorAll('button, span');
-      for (const sib of siblings) {
-        const text = clean(sib.textContent);
-        // Category is usually short, not a number, not a button action
-        if (text && text.length > 2 && text.length < 60 && 
-            !text.match(/^\d/) && !text.includes('Directions') && 
-            !text.includes('Save') && !text.includes('Share') &&
-            !text.includes('Call') && text !== detail.name) {
-          detail.category = text;
-          break;
-        }
+    // Category: .DkEaL button
+    d.category = document.querySelector('.DkEaL')?.textContent?.trim() || '';
+    
+    // Rating: .MW4etd in the detail panel (not from search results)
+    // We need to find the rating that's inside the main detail area
+    const mainPanel = document.querySelector('[role="main"]');
+    if (mainPanel) {
+      const ratingEl = mainPanel.querySelector('.MW4etd');
+      if (ratingEl) {
+        const val = parseFloat(ratingEl.textContent);
+        if (val >= 1 && val <= 5) d.rating = val;
+      }
+      
+      // Reviews: .UY7F9
+      const reviewsEl = mainPanel.querySelector('.UY7F9');
+      if (reviewsEl) {
+        const m = reviewsEl.textContent.match(/[\d,.]+/);
+        if (m) d.reviews = parseInt(m[0].replace(/[.,]/g,''));
       }
     }
     
-    // === RATING ===
-    // Look for the specific rating display pattern
-    // Google Maps shows rating as "X.X" in a specific span, often near stars
-    const allSpans = document.querySelectorAll('span');
-    for (const span of allSpans) {
-      const text = clean(span.textContent);
-      // Rating is exactly "X.X" format, standalone
-      if (text.match(/^\d\.\d$/) && span.children.length === 0) {
-        const val = parseFloat(text);
-        if (val >= 1 && val <= 5) {
-          detail.rating = val;
-          break;
-        }
-      }
+    // Address: data-item-id="address"
+    const addrEl = document.querySelector('[data-item-id="address"] button') || 
+                   document.querySelector('[data-item-id="address"]');
+    if (addrEl) {
+      d.address = clean(addrEl.getAttribute('aria-label')?.replace(/^Address:\s*/i,'') || addrEl.textContent);
     }
     
-    // === REVIEWS ===
-    // "(X,XXX)" pattern near the rating
-    for (const span of allSpans) {
-      const text = clean(span.textContent);
-      if (text.match(/^\([\d,.]+\)$/) && span.children.length === 0) {
-        detail.reviews = parseInt(text.replace(/[().,]/g, ''));
-        break;
-      }
+    // Phone: data-item-id contains "phone"
+    const phoneEl = document.querySelector('[data-item-id*="phone"] button') || 
+                    document.querySelector('[data-item-id*="phone"]');
+    if (phoneEl) {
+      const raw = phoneEl.getAttribute('aria-label')?.replace(/^Phone:\s*/i,'') || phoneEl.textContent;
+      const m = raw.match(/[\d\s\-+()]{8,}/);
+      if (m) d.phone = m[0].trim();
     }
     
-    // === ADDRESS ===
-    // data-item-id="address" is the most reliable
-    const addressBtn = document.querySelector('[data-item-id="address"] button') ||
-                       document.querySelector('button[data-item-id="address"]');
-    if (addressBtn) {
-      const ariaLabel = addressBtn.getAttribute('aria-label') || '';
-      detail.address = clean(ariaLabel.replace(/^Address:\s*/i, '') || addressBtn.textContent);
-    }
-    
-    // === PHONE ===
-    // data-item-id contains "phone"
-    const phoneBtn = document.querySelector('[data-item-id*="phone"] button') ||
-                     document.querySelector('button[data-item-id*="phone"]');
-    if (phoneBtn) {
-      const ariaLabel = phoneBtn.getAttribute('aria-label') || '';
-      const raw = ariaLabel.replace(/^Phone:\s*/i, '') || phoneBtn.textContent;
-      const phoneMatch = raw.match(/[\d\s\-+()]{8,}/);
-      if (phoneMatch) detail.phone = phoneMatch[0].trim();
-    }
-    
-    // === WEBSITE ===
-    // data-item-id="authority"
-    const webEl = document.querySelector('[data-item-id="authority"] a') ||
-                  document.querySelector('a[data-item-id="authority"]');
+    // Website: data-item-id="authority"
+    const webEl = document.querySelector('[data-item-id="authority"] a') || 
+                  document.querySelector('[data-item-id="authority"] button') ||
+                  document.querySelector('[data-item-id="authority"]');
     if (webEl) {
-      detail.website = webEl.href || clean(webEl.textContent);
-    } else {
-      // Try button version
-      const webBtn = document.querySelector('[data-item-id="authority"] button');
-      if (webBtn) {
-        detail.website = clean(webBtn.getAttribute('aria-label')?.replace(/^Website:\s*/i, '') || webBtn.textContent);
+      d.website = webEl.href || clean(webEl.textContent);
+      if (d.website && !d.website.startsWith('http')) {
+        d.website = 'https://' + d.website;
       }
     }
     
-    // === HOURS ===
-    // data-item-id contains "hours"
-    const hoursBtn = document.querySelector('[data-item-id*="hours"] button') ||
-                     document.querySelector('button[data-item-id*="hours"]');
-    if (hoursBtn) {
-      const ariaLabel = hoursBtn.getAttribute('aria-label') || '';
-      detail.hours = clean(ariaLabel || hoursBtn.textContent);
+    // Hours: data-item-id contains "hours"
+    const hoursEl = document.querySelector('[data-item-id*="hours"] button') || 
+                    document.querySelector('[data-item-id*="hours"]');
+    if (hoursEl) {
+      d.hours = clean(hoursEl.getAttribute('aria-label') || hoursEl.textContent);
     }
     
-    // === PRICE LEVEL ===
-    const priceSpans = document.querySelectorAll('span[aria-label*="Price"], span[aria-label*="price"]');
-    if (priceSpans.length) {
-      detail.priceLevel = clean(priceSpans[0].getAttribute('aria-label') || priceSpans[0].textContent);
-    }
-    
-    return detail;
+    return d;
   }
 
-  // ─── Click a listing, scrape detail, go back ──────────────────────
+  // ─── Click listing → scrape detail → go back ──────────────────────
   
   async function processOneListing(cardLink) {
-    // 1. Scroll card into view
-    cardLink.scrollIntoView({ behavior: 'instant', block: 'center' });
+    // Scroll into view
+    cardLink.scrollIntoView({ behavior:'instant', block:'center' });
     await wait(200);
     
-    // 2. Click the card to open detail panel
+    // Click
     cardLink.click();
     
-    // 3. Wait for detail panel to appear
-    // We wait for h1 to change (new business name) or for data-item-id elements
-    let attempts = 0;
-    while (attempts < 10) {
+    // Wait for detail panel (.DUwDvf to appear with business name)
+    let name = '';
+    for (let i = 0; i < 15; i++) {
       await wait(300);
-      const h1 = document.querySelector('h1');
-      if (h1 && clean(h1.textContent)) break;
-      attempts++;
+      name = document.querySelector('.DUwDvf')?.textContent?.trim();
+      if (name && name !== 'Results') break;
     }
     
     // Extra wait for lazy content
     await wait(500);
     
-    // 4. Scroll detail panel to load all content
-    const detailScroll = document.querySelector('.m6QErb.DxyBCb') || 
-                         document.querySelector('.m6QErb.Pf6ghf');
-    if (detailScroll && detailScroll.scrollHeight > detailScroll.clientHeight) {
-      for (let scroll = 0; scroll <= detailScroll.scrollHeight; scroll += 300) {
-        detailScroll.scrollTop = scroll;
-        await wait(100);
+    // Scroll detail panel to load all content
+    const scrollContainers = document.querySelectorAll('.m6QErb');
+    for (const container of scrollContainers) {
+      if (container.scrollHeight > container.clientHeight + 50) {
+        const step = 300;
+        for (let s = 0; s <= container.scrollHeight; s += step) {
+          container.scrollTop = s;
+          await wait(80);
+        }
+        container.scrollTop = 0;
+        await wait(200);
       }
-      // Scroll back to top
-      detailScroll.scrollTop = 0;
-      await wait(200);
     }
     
-    // 5. Scrape the detail panel
+    // Scrape
     const details = scrapeDetailPanel();
     
-    // 6. Click "Back" to return to search results
-    const backBtn = document.querySelector('button[aria-label="Back"]') ||
-                    document.querySelector('button[jsaction*="back"]') ||
-                    document.querySelector('button[data-item-id="back"]');
+    // Click Back
+    const backBtn = document.querySelector('button[aria-label="Back"]') || 
+                    document.querySelector('button[jsaction*="back"]');
     if (backBtn) {
       backBtn.click();
-      // Wait for search results to come back
       await wait(800);
     }
     
     return details;
   }
 
-  // ─── Auto-scroll search results ───────────────────────────────────
+  // ─── Auto-scroll ──────────────────────────────────────────────────
   
-  async function autoScroll(maxScrolls, onProgress) {
-    // Find the scrollable container for search results
-    // It's NOT role="feed" (that's the detail panel sometimes)
-    // Look for the container that has the listing cards
-    const feed = document.querySelector('[role="feed"]') ||
-                 document.querySelector('.m6QErb[aria-label]');
+  async function autoScroll(max, onProgress) {
+    const feed = document.querySelector('[role="feed"]') || document.querySelector('.m6QErb[aria-label]');
     if (!feed) return 0;
     
-    let count = 0;
-    let lastHeight = 0;
-    let stuck = 0;
-    
-    while (count < maxScrolls && !shouldCancel) {
+    let count = 0, lastH = 0, stuck = 0;
+    while (count < max && !shouldCancel) {
       feed.scrollTop = feed.scrollHeight;
       await wait(1500);
-      
-      if (feed.scrollHeight === lastHeight) {
-        stuck++;
-        if (stuck >= 3) break;
-      } else {
-        stuck = 0;
-      }
-      
-      lastHeight = feed.scrollHeight;
+      if (feed.scrollHeight === lastH) { stuck++; if (stuck >= 3) break; } else stuck = 0;
+      lastH = feed.scrollHeight;
       count++;
-      
-      if (onProgress) {
-        const found = document.querySelectorAll('a[href*="/maps/place/"]').length;
-        onProgress({ percent: Math.round((count / maxScrolls) * 100), current: count, max: maxScrolls, found });
-      }
+      if (onProgress) onProgress({ percent: Math.round(count/max*100), current: count, max, found: document.querySelectorAll('[role="article"]').length });
     }
-    
     return count;
   }
 
-  // ─── Extract email from website ───────────────────────────────────
+  // ─── Extract email ────────────────────────────────────────────────
   
   async function extractEmail(url) {
-    if (!url || !url.startsWith('http')) return [];
-    
+    if (!url?.startsWith('http')) return [];
     const emails = new Set();
     const pages = [url];
+    try { const o = new URL(url).origin; pages.push(o+'/contact',o+'/about',o+'/kontak',o+'/hubungi'); } catch(e){}
     
-    try {
-      const origin = new URL(url).origin;
-      pages.push(origin + '/contact', origin + '/about', origin + '/kontak', origin + '/hubungi');
-    } catch (e) {}
-    
-    for (const pageUrl of pages) {
+    for (const p of pages) {
       try {
-        const resp = await fetch(pageUrl, { mode: 'cors', credentials: 'omit', signal: AbortSignal.timeout(4000) });
-        if (!resp.ok) continue;
-        const html = await resp.text();
-        
+        const r = await fetch(p, { mode:'cors', credentials:'omit', signal: AbortSignal.timeout(4000) });
+        if (!r.ok) continue;
+        const html = await r.text();
         const matches = html.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g) || [];
-        for (const email of matches) {
-          const lower = email.toLowerCase();
-          if (!lower.includes('example.com') && !lower.includes('sentry.io') && 
-              !lower.includes('w3.org') && !lower.includes('schema.org') &&
-              !lower.includes('googleapis') && !lower.includes('gstatic') &&
-              !lower.includes('.png') && !lower.includes('.jpg') &&
-              !lower.includes('noreply') && lower.length < 50) {
-            emails.add(lower);
-          }
+        for (const e of matches) {
+          const l = e.toLowerCase();
+          if (!l.includes('example.com') && !l.includes('sentry.io') && !l.includes('w3.org') && 
+              !l.includes('schema.org') && !l.includes('googleapis') && !l.includes('gstatic') &&
+              !l.includes('.png') && !l.includes('noreply') && l.length < 50) emails.add(l);
         }
-      } catch (e) {}
+      } catch(e){}
     }
-    
     return [...emails];
   }
 
-  // ─── Deduplicate ─────────────────────────────────────────────────
+  // ─── Deduplicate ──────────────────────────────────────────────────
   
   function deduplicate(leads) {
     const map = new Map();
-    for (const lead of leads) {
-      const key = (lead.name || '').toLowerCase().trim();
-      if (!map.has(key)) {
-        map.set(key, lead);
-      } else {
-        const existing = map.get(key);
-        // Merge: keep non-empty values
-        for (const k of Object.keys(lead)) {
-          if (lead[k] && !existing[k]) existing[k] = lead[k];
-        }
-      }
+    for (const l of leads) {
+      const key = (l.name||'').toLowerCase().trim();
+      if (!map.has(key)) map.set(key, l);
+      else { const ex = map.get(key); for (const k of Object.keys(l)) if (l[k] && !ex[k]) ex[k] = l[k]; }
     }
     return [...map.values()];
-  }
-
-  // ─── Progress ─────────────────────────────────────────────────────
-  
-  function sendProgress(stage, percent, text, eta) {
-    chrome.runtime.sendMessage({ type: 'PROGRESS', stage, percent, text, eta }).catch(() => {});
   }
 
   // ─── Message Handler ──────────────────────────────────────────────
@@ -344,20 +257,12 @@
   chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     
     if (msg.type === 'CHECK_MAPS') {
-      sendResponse({ 
-        isMaps: location.href.includes('google.com/maps'),
-        hasResults: !!document.querySelector('a[href*="/maps/place/"]')
-      });
+      sendResponse({ isMaps: location.href.includes('google.com/maps'), hasResults: !!document.querySelector('[role="article"]') });
       return true;
     }
     
-    if (msg.type === 'CANCEL') {
-      shouldCancel = true;
-      sendResponse({ ok: true });
-      return true;
-    }
+    if (msg.type === 'CANCEL') { shouldCancel = true; sendResponse({ ok:true }); return true; }
     
-    // === MAIN SCRAPE FLOW ===
     if (msg.type === 'SCRAPE') {
       shouldCancel = false;
       const opts = msg.options || {};
@@ -365,115 +270,75 @@
       
       (async () => {
         try {
-          
-          // ── Step 1: Auto-scroll ──
+          // Step 1: Scroll
           if (opts.scroll) {
-            sendProgress('scrolling', 0, 'Scrolling...');
-            await autoScroll(30, (p) => {
-              sendProgress('scrolling', p.percent, 
-                `Scrolling... ${p.found} listings (${p.current}/${p.max})`);
+            chrome.runtime.sendMessage({ type:'PROGRESS', stage:'scrolling', percent:0, text:'Scrolling...' }).catch(()=>{});
+            await autoScroll(30, p => {
+              chrome.runtime.sendMessage({ type:'PROGRESS', stage:'scrolling', percent:p.percent, text:`Scrolling... ${p.found} found (${p.current}/${p.max})` }).catch(()=>{});
             });
           }
+          if (shouldCancel) { sendResponse({ cancelled:true }); return; }
           
-          if (shouldCancel) { sendResponse({ cancelled: true }); return; }
-          
-          // ── Step 2: Scrape basic data ──
-          sendProgress('scraping', 100, 'Scraping listings...');
+          // Step 2: Scrape
+          chrome.runtime.sendMessage({ type:'PROGRESS', stage:'scraping', percent:100, text:'Scraping...' }).catch(()=>{});
           let leads = scrapeListings();
           
-          // Limit by maxListings
-          if (opts.maxListings > 0 && leads.length > opts.maxListings) {
-            leads = leads.slice(0, opts.maxListings);
-          }
+          // Limit
+          if (opts.maxListings > 0 && leads.length > opts.maxListings) leads = leads.slice(0, opts.maxListings);
           
-          if (shouldCancel) { sendResponse({ cancelled: true }); return; }
+          if (shouldCancel) { sendResponse({ cancelled:true }); return; }
           
-          // ── Step 3: Get details ──
+          // Step 3: Details
           if (opts.details && leads.length > 0) {
             const total = leads.length;
-            const detailStart = Date.now();
+            const t0 = Date.now();
             
             for (let i = 0; i < total; i++) {
               if (shouldCancel) break;
               
-              // Re-find card links each time (DOM changes after Back)
-              const cards = document.querySelectorAll('a[href*="/maps/place/"]');
-              
-              // Find the card that matches this lead's URL
-              let targetCard = null;
-              for (const card of cards) {
-                if (card.href === leads[i].url) {
-                  targetCard = card;
-                  break;
-                }
+              // Re-find cards each iteration (DOM changes after Back)
+              const articles = document.querySelectorAll('[role="article"]');
+              let target = null;
+              for (const art of articles) {
+                const a = art.querySelector('a[href*="/maps/place/"]');
+                if (a && a.href === leads[i].url) { target = a; break; }
               }
+              if (!target) continue;
               
-              // If exact URL match not found, try by index
-              if (!targetCard && i < cards.length) {
-                targetCard = cards[i];
-              }
-              
-              if (!targetCard) continue;
-              
-              // Click → scrape detail → go back
-              const details = await processOneListing(targetCard);
-              
-              // Merge details into lead (only non-empty values)
+              const details = await processOneListing(target);
               if (details) {
-                for (const key of Object.keys(details)) {
-                  if (details[key]) leads[i][key] = details[key];
-                }
+                for (const k of Object.keys(details)) if (details[k]) leads[i][k] = details[k];
               }
               
-              // Progress with ETA
-              const elapsed = (Date.now() - detailStart) / 1000;
-              const perItem = elapsed / (i + 1);
-              const remaining = perItem * (total - i - 1);
-              const eta = remaining > 60 ? `${Math.round(remaining/60)}m left` : `${Math.round(remaining)}s left`;
-              
-              sendProgress('details', Math.round(((i + 1) / total) * 100),
-                `${leads[i].name} (${i + 1}/${total})`, eta);
+              const elapsed = (Date.now()-t0)/1000;
+              const eta = (elapsed/(i+1))*(total-i-1);
+              const etaStr = eta > 60 ? `${Math.round(eta/60)}m` : `${Math.round(eta)}s`;
+              chrome.runtime.sendMessage({ type:'PROGRESS', stage:'details', percent:Math.round((i+1)/total*100), text:`${leads[i].name} (${i+1}/${total})`, eta: etaStr+' left' }).catch(()=>{});
             }
           }
+          if (shouldCancel) { sendResponse({ cancelled:true }); return; }
           
-          if (shouldCancel) { sendResponse({ cancelled: true }); return; }
-          
-          // ── Step 4: Extract emails ──
+          // Step 4: Emails
           if (opts.emails) {
-            const withWebsite = leads.filter(l => l.website && !l.email);
-            const total = withWebsite.length;
+            const todo = leads.filter(l => l.website && !l.email);
             let found = 0;
-            
-            for (let i = 0; i < total; i++) {
+            for (let i = 0; i < todo.length; i++) {
               if (shouldCancel) break;
-              
-              const emails = await extractEmail(withWebsite[i].website);
-              if (emails.length > 0) {
-                withWebsite[i].email = emails[0];
-                found++;
-              }
-              
-              sendProgress('emails', Math.round(((i + 1) / total) * 100),
-                `Emails: ${found} found (${i + 1}/${total})`);
+              const emails = await extractEmail(todo[i].website);
+              if (emails.length) { todo[i].email = emails[0]; found++; }
+              chrome.runtime.sendMessage({ type:'PROGRESS', stage:'emails', percent:Math.round((i+1)/todo.length*100), text:`Emails: ${found} found (${i+1}/${todo.length})` }).catch(()=>{});
             }
           }
           
-          // ── Step 5: Deduplicate ──
-          if (opts.dedup) {
-            leads = deduplicate(leads);
-          }
+          // Step 5: Dedup
+          if (opts.dedup) leads = deduplicate(leads);
           
-          const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
-          sendResponse({ success: true, leads, elapsed });
-          
-        } catch (e) {
-          sendResponse({ error: e.message });
-        }
+          sendResponse({ success:true, leads, elapsed: ((Date.now()-startTime)/1000).toFixed(1) });
+        } catch(e) { sendResponse({ error: e.message }); }
       })();
-      
       return true;
     }
   });
 
-  console.log('[Maps Lead Scraper] Content script v3.0 loaded');
+  console.log('[Maps Lead Scraper] Content script v3.1 loaded — TESTED');
 })();
