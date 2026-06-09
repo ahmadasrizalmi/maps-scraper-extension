@@ -10,7 +10,6 @@
       --green-dark: #2D8E47;
       --green-light: #E8F5E9;
       --blue: #007AFF;
-      --blue-dark: #0066CC;
       --red: #EA4335;
       --orange: #FB8C00;
       --gray-50: #F9FAFB;
@@ -22,31 +21,27 @@
       --gray-900: #1D1D1F;
       --radius: 10px;
       --radius-sm: 8px;
-      --shadow: 0 1px 3px rgba(0,0,0,0.08);
     }
     
     body { 
       width: 100%;
       min-height: 100vh;
-      font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', sans-serif;
+      font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif;
       background: var(--gray-100); 
       color: var(--gray-900);
       -webkit-font-smoothing: antialiased;
       font-size: 13px;
-      line-height: 1.4;
     }
     
     /* ─── Header ─────────────────────────────────────────────── */
     
     .header { 
       background: white;
-      padding: 16px;
+      padding: 14px 16px;
       border-bottom: 0.5px solid var(--gray-300);
       position: sticky;
       top: 0;
       z-index: 10;
-    }
-    .header-top {
       display: flex;
       align-items: center;
       justify-content: space-between;
@@ -57,8 +52,8 @@
       gap: 10px;
     }
     .header-icon-box {
-      width: 36px;
-      height: 36px;
+      width: 34px;
+      height: 34px;
       background: var(--green);
       border-radius: var(--radius-sm);
       display: flex;
@@ -66,15 +61,7 @@
       justify-content: center;
       color: white;
     }
-    .header-title {
-      font-size: 17px;
-      font-weight: 700;
-      letter-spacing: -0.3px;
-    }
-    .header-subtitle {
-      font-size: 11px;
-      color: var(--gray-500);
-    }
+    .header-title { font-size: 16px; font-weight: 700; letter-spacing: -0.3px; }
     .header-badge {
       display: inline-flex;
       align-items: center;
@@ -86,97 +73,74 @@
       font-size: 12px;
       font-weight: 600;
     }
+    .header-badge svg { width: 13px; height: 13px; }
     
-    /* ─── Controls Bar ───────────────────────────────────────── */
+    /* ─── Controls ───────────────────────────────────────────── */
     
     .controls {
       background: white;
       padding: 12px 16px;
       border-bottom: 0.5px solid var(--gray-300);
     }
-    .btn-row {
-      display: flex;
-      gap: 8px;
-      margin-bottom: 10px;
-    }
-    .btn-row:last-child { margin-bottom: 0; }
     
-    .btn { 
-      flex: 1;
-      padding: 9px 12px;
+    .scrape-btn {
+      width: 100%;
+      padding: 12px;
+      background: var(--green);
+      color: white;
       border: none;
       border-radius: var(--radius-sm);
-      font-size: 12px;
+      font-size: 14px;
       font-weight: 600;
       cursor: pointer;
-      transition: all 0.15s;
-      display: inline-flex;
+      display: flex;
       align-items: center;
       justify-content: center;
-      gap: 6px;
-      white-space: nowrap;
+      gap: 8px;
+      transition: all 0.15s;
+      margin-bottom: 10px;
     }
-    .btn:active { transform: scale(0.97); }
-    .btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
-    .btn svg { width: 15px; height: 15px; flex-shrink: 0; }
+    .scrape-btn:hover { background: var(--green-dark); }
+    .scrape-btn:active { transform: scale(0.98); }
+    .scrape-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+    .scrape-btn svg { width: 18px; height: 18px; }
     
-    .btn-green { background: var(--green); color: white; }
-    .btn-green:hover:not(:disabled) { background: var(--green-dark); }
-    
-    .btn-blue { background: var(--blue); color: white; }
-    .btn-blue:hover:not(:disabled) { background: var(--blue-dark); }
-    
-    .btn-gray { background: var(--gray-100); color: var(--gray-900); }
-    .btn-gray:hover:not(:disabled) { background: var(--gray-200); }
-    
-    .btn-outline { background: transparent; color: var(--green); border: 1.5px solid var(--green); }
-    .btn-outline:hover:not(:disabled) { background: var(--green-light); }
-    
-    .btn-red { background: transparent; color: var(--red); border: 1.5px solid var(--red); }
-    .btn-red:hover:not(:disabled) { background: #FDECEA; }
-    
-    /* Checkboxes */
-    .check-row {
-      display: flex;
-      gap: 16px;
-      flex-wrap: wrap;
+    .scrape-btn.running {
+      background: var(--orange);
     }
-    .check-item {
+    
+    .options {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px 12px;
+    }
+    .opt {
       display: flex;
       align-items: center;
-      gap: 5px;
+      gap: 6px;
       font-size: 11px;
       color: var(--gray-700);
       cursor: pointer;
+      padding: 4px 0;
     }
-    .check-item input { accent-color: var(--green); cursor: pointer; }
+    .opt input { accent-color: var(--green); cursor: pointer; }
     
-    /* ─── Stats Bar ──────────────────────────────────────────── */
+    /* ─── Stats ──────────────────────────────────────────────── */
     
     .stats {
       display: none;
       grid-template-columns: repeat(4, 1fr);
       gap: 1px;
       background: var(--gray-200);
-      border-bottom: 0.5px solid var(--gray-300);
     }
     .stats.visible { display: grid; }
     .stat-card {
       background: white;
-      padding: 10px 8px;
+      padding: 10px 6px;
       text-align: center;
     }
-    .stat-value {
-      font-size: 18px;
-      font-weight: 700;
-      color: var(--green);
-    }
-    .stat-label {
-      font-size: 10px;
-      color: var(--gray-500);
-      text-transform: uppercase;
-      letter-spacing: 0.3px;
-    }
+    .stat-value { font-size: 18px; font-weight: 700; color: var(--green); }
+    .stat-label { font-size: 10px; color: var(--gray-500); text-transform: uppercase; }
     
     /* ─── Progress ───────────────────────────────────────────── */
     
@@ -187,35 +151,13 @@
       border-bottom: 0.5px solid #FFF9C4;
     }
     .progress.visible { display: block; }
-    .progress-header {
-      display: flex;
-      justify-content: space-between;
-      margin-bottom: 6px;
-    }
-    .progress-text {
-      font-size: 12px;
-      color: var(--orange);
-      font-weight: 500;
-    }
-    .progress-eta {
-      font-size: 11px;
-      color: var(--gray-500);
-    }
-    .progress-bar {
-      height: 4px;
-      background: #FFF9C4;
-      border-radius: 2px;
-      overflow: hidden;
-    }
-    .progress-fill {
-      height: 100%;
-      background: var(--orange);
-      border-radius: 2px;
-      transition: width 0.3s;
-      width: 0%;
-    }
+    .progress-header { display: flex; justify-content: space-between; margin-bottom: 6px; }
+    .progress-text { font-size: 12px; color: var(--orange); font-weight: 500; }
+    .progress-eta { font-size: 11px; color: var(--gray-500); }
+    .progress-bar { height: 4px; background: #FFF9C4; border-radius: 2px; overflow: hidden; }
+    .progress-fill { height: 100%; background: var(--orange); border-radius: 2px; transition: width 0.3s; width: 0%; }
     
-    /* ─── Search & Filter ────────────────────────────────────── */
+    /* ─── Filter ─────────────────────────────────────────────── */
     
     .filter-bar {
       display: none;
@@ -226,25 +168,12 @@
     }
     .filter-bar.visible { display: flex; flex-wrap: wrap; }
     
-    .search-input {
+    .search-wrap {
       flex: 1;
-      min-width: 120px;
-      padding: 8px 10px 8px 32px;
-      background: var(--gray-100);
-      border: none;
-      border-radius: var(--radius-sm);
-      font-size: 12px;
-      color: var(--gray-900);
+      min-width: 100px;
       position: relative;
     }
-    .search-input:focus { outline: none; background: var(--gray-200); }
-    
-    .search-wrapper {
-      flex: 1;
-      min-width: 120px;
-      position: relative;
-    }
-    .search-wrapper svg {
+    .search-wrap svg {
       position: absolute;
       left: 10px;
       top: 50%;
@@ -254,28 +183,31 @@
       color: var(--gray-500);
       pointer-events: none;
     }
-    
-    .filter-select {
-      padding: 8px 10px;
+    .search-input {
+      width: 100%;
+      padding: 7px 10px 7px 30px;
       background: var(--gray-100);
       border: none;
       border-radius: var(--radius-sm);
       font-size: 12px;
       color: var(--gray-900);
+    }
+    .search-input:focus { outline: none; background: var(--gray-200); }
+    
+    .filter-select {
+      padding: 7px 8px;
+      background: var(--gray-100);
+      border: none;
+      border-radius: var(--radius-sm);
+      font-size: 12px;
       cursor: pointer;
     }
-    .filter-select:focus { outline: none; background: var(--gray-200); }
     
-    /* ─── Results Table ──────────────────────────────────────── */
+    /* ─── Table ──────────────────────────────────────────────── */
     
-    .results-container {
-      flex: 1;
-      overflow-y: auto;
-    }
+    .results-container { flex: 1; overflow-y: auto; max-height: calc(100vh - 340px); }
     
-    .table-wrapper {
-      overflow-x: auto;
-    }
+    .table-wrap { overflow-x: auto; }
     
     .results-table {
       width: 100%;
@@ -287,60 +219,38 @@
       position: sticky;
       top: 0;
       background: var(--gray-100);
-      padding: 8px 10px;
+      padding: 7px 8px;
       text-align: left;
       font-weight: 600;
       color: var(--gray-500);
       font-size: 10px;
       text-transform: uppercase;
-      letter-spacing: 0.3px;
       border-bottom: 0.5px solid var(--gray-300);
       z-index: 2;
       cursor: pointer;
       user-select: none;
     }
     .results-table th:hover { color: var(--gray-900); }
-    .results-table th svg { width: 10px; height: 10px; vertical-align: middle; margin-left: 2px; }
-    
     .results-table td {
-      padding: 8px 10px;
+      padding: 7px 8px;
       border-bottom: 0.5px solid var(--gray-200);
-      max-width: 180px;
+      max-width: 160px;
       overflow: hidden;
       text-overflow: ellipsis;
     }
     .results-table tr:hover td { background: var(--gray-50); }
     
-    .cell-name { font-weight: 600; color: var(--gray-900); max-width: 140px; }
-    .cell-category { color: var(--gray-700); }
+    .cell-name { font-weight: 600; }
     .cell-rating { color: var(--orange); font-weight: 600; }
-    .cell-phone { color: var(--blue); }
-    .cell-website { color: var(--green); }
-    .cell-email { color: var(--red); }
+    .cell-phone a { color: var(--blue); text-decoration: none; }
+    .cell-phone a:hover { text-decoration: underline; }
+    .cell-website a { color: var(--green); text-decoration: none; }
+    .cell-email a { color: var(--red); text-decoration: none; font-size: 10px; }
     
-    .cell-phone a, .cell-website a, .cell-email a {
-      color: inherit;
-      text-decoration: none;
-    }
-    .cell-phone a:hover, .cell-website a:hover, .cell-email a:hover {
-      text-decoration: underline;
-    }
-    
-    /* ─── Empty State ────────────────────────────────────────── */
-    
-    .empty-state {
-      text-align: center;
-      padding: 48px 24px;
-      color: var(--gray-500);
-    }
-    .empty-icon svg { width: 48px; height: 48px; color: var(--gray-300); margin-bottom: 12px; }
-    .empty-title {
-      font-size: 16px;
-      font-weight: 600;
-      color: var(--gray-900);
-      margin-bottom: 4px;
-    }
-    .empty-text { font-size: 12px; max-width: 260px; margin: 0 auto; }
+    .empty-state { text-align: center; padding: 48px 24px; color: var(--gray-500); }
+    .empty-state svg { width: 48px; height: 48px; color: var(--gray-300); margin-bottom: 12px; }
+    .empty-title { font-size: 16px; font-weight: 600; color: var(--gray-900); margin-bottom: 4px; }
+    .empty-text { font-size: 12px; max-width: 240px; margin: 0 auto; }
     
     /* ─── Footer ─────────────────────────────────────────────── */
     
@@ -352,30 +262,45 @@
       border-top: 0.5px solid var(--gray-300);
       display: flex;
       gap: 6px;
+      flex-wrap: wrap;
     }
-    
-    /* ─── Not Maps ───────────────────────────────────────────── */
-    
-    .not-maps {
-      display: none;
-      text-align: center;
-      padding: 48px 24px;
+    .btn { 
+      padding: 8px 10px;
+      border: none;
+      border-radius: var(--radius-sm);
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      transition: all 0.15s;
+      white-space: nowrap;
     }
+    .btn:active { transform: scale(0.97); }
+    .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    .btn svg { width: 14px; height: 14px; }
+    
+    .btn-green { background: var(--green); color: white; }
+    .btn-green:hover:not(:disabled) { background: var(--green-dark); }
+    .btn-blue { background: var(--blue); color: white; }
+    .btn-gray { background: var(--gray-100); color: var(--gray-900); }
+    .btn-gray:hover:not(:disabled) { background: var(--gray-200); }
+    
+    .not-maps { display: none; text-align: center; padding: 48px 24px; }
     .not-maps.visible { display: block; }
     .not-maps svg { width: 56px; height: 56px; color: var(--gray-300); margin-bottom: 16px; }
     .not-maps h2 { font-size: 17px; font-weight: 600; margin-bottom: 6px; }
     .not-maps p { font-size: 12px; color: var(--gray-500); margin-bottom: 16px; }
     
-    /* ─── Toast ──────────────────────────────────────────────── */
-    
     .toast {
       position: fixed;
-      bottom: 70px;
+      bottom: 60px;
       left: 50%;
       transform: translateX(-50%) translateY(20px);
       background: var(--gray-900);
       color: white;
-      padding: 10px 20px;
+      padding: 8px 18px;
       border-radius: 20px;
       font-size: 12px;
       font-weight: 500;
@@ -384,76 +309,49 @@
       z-index: 100;
       pointer-events: none;
     }
-    .toast.show {
-      opacity: 1;
-      transform: translateX(-50%) translateY(0);
-    }
-    
-    /* ─── Scrollbar ──────────────────────────────────────────── */
+    .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
     
     ::-webkit-scrollbar { width: 6px; }
     ::-webkit-scrollbar-track { background: transparent; }
     ::-webkit-scrollbar-thumb { background: var(--gray-300); border-radius: 3px; }
-    ::-webkit-scrollbar-thumb:hover { background: var(--gray-500); }
   </style>
 </head>
 <body>
   
   <!-- Header -->
   <div class="header">
-    <div class="header-top">
-      <div class="header-brand">
-        <div class="header-icon-box">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
-        </div>
-        <div>
-          <div class="header-title">Maps Lead Scraper</div>
-          <div class="header-subtitle">Scrape & export business leads</div>
-        </div>
+    <div class="header-brand">
+      <div class="header-icon-box">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
       </div>
-      <div class="header-badge" id="lead-count">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-        <span id="lead-count-text">0</span>
-      </div>
+      <div class="header-title">Maps Lead Scraper</div>
+    </div>
+    <div class="header-badge" id="lead-count">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+      <span id="lead-count-text">0</span>
     </div>
   </div>
   
   <!-- Controls -->
   <div class="controls">
-    <div class="btn-row">
-      <button class="btn btn-green" id="btn-scrape">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
-        <span>Scrape Listings</span>
-      </button>
-      <button class="btn btn-blue" id="btn-details" disabled>
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
-        <span>Get Details</span>
-      </button>
-    </div>
-    <div class="btn-row">
-      <button class="btn btn-outline" id="btn-emails" disabled>
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>
-        <span>Extract Emails</span>
-      </button>
-      <button class="btn btn-gray" id="btn-cancel" style="display:none;">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="m15 9-6 6"/><path d="m9 9 6 6"/></svg>
-        <span>Cancel</span>
-      </button>
-    </div>
-    <div class="check-row">
-      <label class="check-item">
+    <button class="scrape-btn" id="btn-scrape">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+      <span id="btn-scrape-text">Scrape Listings</span>
+    </button>
+    <div class="options">
+      <label class="opt">
         <input type="checkbox" id="opt-scroll" checked>
         <span>Auto-scroll</span>
       </label>
-      <label class="check-item">
-        <input type="checkbox" id="opt-details">
-        <span>Auto-details</span>
+      <label class="opt">
+        <input type="checkbox" id="opt-details" checked>
+        <span>Get details</span>
       </label>
-      <label class="check-item">
+      <label class="opt">
         <input type="checkbox" id="opt-emails">
-        <span>Auto-emails</span>
+        <span>Extract emails</span>
       </label>
-      <label class="check-item">
+      <label class="opt">
         <input type="checkbox" id="opt-dedup" checked>
         <span>Deduplicate</span>
       </label>
@@ -491,39 +389,35 @@
     </div>
   </div>
   
-  <!-- Search & Filter -->
+  <!-- Filter -->
   <div class="filter-bar" id="filter-bar">
-    <div class="search-wrapper">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
-      <input type="text" class="search-input" id="search-input" placeholder="Search leads...">
+    <div class="search-wrap">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+      <input type="text" class="search-input" id="search-input" placeholder="Search...">
     </div>
     <select class="filter-select" id="filter-rating">
       <option value="">All ratings</option>
-      <option value="4.5">4.5+ stars</option>
-      <option value="4.0">4.0+ stars</option>
-      <option value="3.5">3.5+ stars</option>
-      <option value="3.0">3.0+ stars</option>
+      <option value="4.5">4.5+</option>
+      <option value="4.0">4.0+</option>
+      <option value="3.5">3.5+</option>
     </select>
     <select class="filter-select" id="filter-has">
       <option value="">All</option>
       <option value="phone">Has phone</option>
       <option value="website">Has website</option>
       <option value="email">Has email</option>
-      <option value="no-phone">No phone</option>
     </select>
   </div>
   
   <!-- Results -->
   <div class="results-container" id="results-container">
     <div class="empty-state" id="empty-state">
-      <div class="empty-icon">
-        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
-      </div>
+      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
       <div class="empty-title">Google Maps Lead Scraper</div>
-      <div class="empty-text">Search for businesses on Google Maps, then click "Scrape Listings" to extract leads</div>
+      <div class="empty-text">Search on Google Maps, then click Scrape to extract business leads</div>
     </div>
-    <div class="table-wrapper" id="table-wrapper" style="display:none;">
-      <table class="results-table" id="results-table">
+    <div class="table-wrap" id="table-wrap" style="display:none;">
+      <table class="results-table">
         <thead>
           <tr>
             <th data-sort="index">#</th>
@@ -531,7 +425,7 @@
             <th data-sort="category">Category</th>
             <th data-sort="rating">Rating</th>
             <th data-sort="phone">Phone</th>
-            <th data-sort="website">Website</th>
+            <th data-sort="website">Web</th>
             <th data-sort="email">Email</th>
           </tr>
         </thead>
@@ -542,40 +436,39 @@
   
   <!-- Not Maps -->
   <div class="not-maps" id="not-maps">
-    <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
+    <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
     <h2>Open Google Maps</h2>
-    <p>Navigate to Google Maps and search for businesses to start scraping leads.</p>
+    <p>Navigate to Google Maps and search for businesses.</p>
     <button class="btn btn-green" id="btn-open-maps">
-      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
-      <span>Open Google Maps</span>
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+      Open Maps
     </button>
   </div>
   
   <!-- Footer -->
   <div class="footer">
-    <button class="btn btn-outline" id="btn-save" disabled>
-      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
-      <span>Save</span>
+    <button class="btn btn-gray" id="btn-save" disabled>
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+      Save
     </button>
     <button class="btn btn-gray" id="btn-load">
-      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-      <span>Load</span>
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      Load
     </button>
-    <button class="btn btn-green" id="btn-export-csv" disabled>
-      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/></svg>
-      <span>CSV</span>
+    <button class="btn btn-green" id="btn-csv" disabled>
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/></svg>
+      CSV
     </button>
-    <button class="btn btn-blue" id="btn-export-xlsx" disabled>
-      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><path d="M8 13h2"/><path d="M8 17h2"/><path d="M14 13h2"/><path d="M14 17h2"/></svg>
-      <span>Excel</span>
+    <button class="btn btn-blue" id="btn-xlsx" disabled>
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><path d="M8 13h2"/><path d="M8 17h2"/><path d="M14 13h2"/><path d="M14 17h2"/></svg>
+      Excel
     </button>
     <button class="btn btn-gray" id="btn-sheets" disabled>
-      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/></svg>
-      <span>Sheets</span>
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="18" height="18" x="3" y="3" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/></svg>
+      Sheets
     </button>
   </div>
   
-  <!-- Toast -->
   <div class="toast" id="toast"></div>
   
   <script src="sidepanel.js"></script>
