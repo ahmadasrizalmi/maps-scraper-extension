@@ -381,6 +381,11 @@
           sendProgress('scraping', 100, 'Scraping listings...');
           let leads = scrapeListings();
           
+          // Limit by maxListings
+          if (opts.maxListings > 0 && leads.length > opts.maxListings) {
+            leads = leads.slice(0, opts.maxListings);
+          }
+          
           if (shouldCancel) { sendResponse({ cancelled: true }); return; }
           
           // ── Step 3: Get details ──

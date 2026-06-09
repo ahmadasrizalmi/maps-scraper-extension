@@ -125,6 +125,28 @@
     }
     .opt input { accent-color: var(--green); cursor: pointer; }
     
+    .limit-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 8px;
+      padding-top: 8px;
+      border-top: 0.5px solid var(--gray-200);
+    }
+    .limit-input {
+      width: 60px;
+      padding: 6px 8px;
+      background: var(--gray-100);
+      border: none;
+      border-radius: var(--radius-sm);
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--gray-900);
+      text-align: center;
+    }
+    .limit-input:focus { outline: none; background: var(--gray-200); }
+    .limit-hint { font-size: 11px; color: var(--gray-500); }
+    
     /* ─── Stats ──────────────────────────────────────────────── */
     
     .stats {
@@ -355,6 +377,14 @@
         <input type="checkbox" id="opt-dedup" checked>
         <span>Deduplicate</span>
       </label>
+    </div>
+    <div class="limit-row">
+      <label class="opt">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        <span>Max listings:</span>
+      </label>
+      <input type="number" class="limit-input" id="max-listings" value="0" min="0" placeholder="0 = all">
+      <span class="limit-hint">(0 = semua)</span>
     </div>
   </div>
   

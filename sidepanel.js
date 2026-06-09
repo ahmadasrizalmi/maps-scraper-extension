@@ -160,7 +160,8 @@ async function scrape() {
     scroll: $('opt-scroll').checked,
     details: $('opt-details').checked,
     emails: $('opt-emails').checked,
-    dedup: $('opt-dedup').checked
+    dedup: $('opt-dedup').checked,
+    maxListings: parseInt($('max-listings').value) || 0
   };
   
   setRunning(true);
