@@ -86,6 +86,7 @@ function normalizeLead(l) {
 // ─── Tabs ───────────────────────────────────────────────────────────
 
 function switchTab(name) {
+  if (name !== 'pengaturan') saveSettings(); // amankan apapun yang belum tersimpan saat pindah tab
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === name));
   ['tab-leads','tab-kirim','tab-pengaturan','tab-riwayat'].forEach(id => $(id).classList.toggle('active', id === 'tab-' + name));
   if (name === 'kirim') updateTargetInfo();
@@ -354,18 +355,30 @@ function updateTargetInfo() {
 }
 
 async function saveSettings() {
-  waSettings = {
-    apiKey: $('set-api-key').value.trim(),
-    model: $('set-model').value,
-    chunkMin: Math.max(1, parseInt($('set-chunk-min').value, 10) || 3),
-    chunkMax: Math.max(2, parseInt($('set-chunk-max').value, 10) || 8),
-    dailyCap: Math.max(1, parseInt($('set-cap').value, 10) || 30),
-    sender: $('msg-sender').value.trim(),
-    offer: $('msg-offer').value.trim(),
-    link: $('msg-link').value.trim(),
-    tone: $('msg-tone').value
-  };
-  await chrome.storage.local.set({ waSettings });
+  try {
+    waSettings = {
+      apiKey: $('set-api-key').value.trim(),
+      model: $('set-model').value,
+      chunkMin: Math.max(1, parseInt($('set-chunk-min').value, 10) || 3),
+      chunkMax: Math.max(2, parseInt($('set-chunk-max').value, 10) || 8),
+      dailyCap: Math.max(1, parseInt($('set-cap').value, 10) || 30),
+      sender: $('msg-sender').value.trim(),
+      offer: $('msg-offer').value.trim(),
+      link: $('msg-link').value.trim(),
+      tone: $('msg-tone').value
+    };
+    await chrome.storage.local.set({ waSettings });
+    console.log('[Settings] tersimpan:', Object.keys(waSettings).join(', '));
+    return true;
+  } catch (e) {
+    console.error('[Settings] GAGAL menyimpan:', e);
+    return false;
+  }
+}
+
+function showSettingsSaved() {
+  const el = $('settings-status');
+  if (el) el.textContent = '✓ Tersimpan ' + new Date().toLocaleTimeString('id-ID', { hour:'2-digit', minute:'2-digit', second:'2-digit' });
 }
 
 async function loadSettings() {
@@ -380,6 +393,7 @@ async function loadSettings() {
   $('msg-offer').value = waSettings.offer;
   $('msg-link').value = waSettings.link || '';
   $('msg-tone').value = waSettings.tone;
+  if (waSettings.apiKey) showSettingsSaved();
 }
 
 // Pesan: manual (dengan {nama}) atau AI per lead
@@ -702,14 +716,34 @@ function scheduleSettingsSave() {
   clearTimeout(settingsTimer);
   settingsTimer = setTimeout(async () => {
     await saveSettings();
-    const el = $('settings-status');
-    if (el) el.textContent = '✓ Tersimpan ' + new Date().toLocaleTimeString('id-ID', { hour:'2-digit', minute:'2-digit', second:'2-digit' });
-  }, 400);
+    showSettingsSaved();
+  }, 300);
 }
 SETTINGS_FIELDS.forEach(id => {
   const el = $(id);
-  if (el) { el.addEventListener('input', scheduleSettingsSave); el.addEventListener('change', scheduleSettingsSave); }
+  if (el) {
+    el.addEventListener('input', scheduleSettingsSave);
+    el.addEventListener('change', scheduleSettingsSave);  // blur/change
+    el.addEventListener('keyup', scheduleSettingsSave);   // fallback (autofill dsb)
+  }
 });
+
+// Tombol Simpan eksplisit
+$('btn-save-settings').addEventListener('click', async () => {
+  const ok = await saveSettings();
+  showSettingsSaved();
+  toast(ok ? 'Pengaturan tersimpan' : 'Gagal menyimpan — lihat console');
+});
+
+// Lihat / sembunyikan API key (password field kadang diganggu autofill)
+$('btn-toggle-key').addEventListener('click', () => {
+  const inp = $('set-api-key');
+  inp.type = inp.type === 'password' ? 'text' : 'password';
+  $('btn-toggle-key').textContent = inp.type === 'password' ? '👁' : '🙈';
+});
+
+// Simpan terakhir kali saat panel ditutup
+window.addEventListener('beforeunload', () => { saveSettings().catch(() => {}); });
 
 $('btn-clear-sessions').addEventListener('click', async () => {
   sessions = [];

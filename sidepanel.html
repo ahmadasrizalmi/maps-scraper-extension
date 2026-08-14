@@ -390,13 +390,12 @@
   <section class="tab-panel" id="tab-pengaturan">
     <div class="section-card">
       <div class="section-title">AI & pengiriman</div>
-      <div class="row" style="justify-content:space-between;margin-bottom:8px;">
-        <span class="hint">Tersimpan otomatis & permanen di browser ini.</span>
-        <span class="hint" id="settings-status" style="color:var(--green);font-weight:700;"></span>
-      </div>
       <div class="field">
         <label>DeepSeek API Key (platform.deepseek.com)</label>
-        <input type="password" class="input" id="set-api-key" placeholder="sk-…" autocomplete="off">
+        <div class="row">
+          <input type="password" class="input" id="set-api-key" placeholder="sk-…" autocomplete="new-password" spellcheck="false" style="flex:1;">
+          <button class="btn btn-gray" id="btn-toggle-key" title="Lihat / sembunyikan key">👁</button>
+        </div>
       </div>
       <div class="field">
         <label>Model AI</label>
@@ -417,6 +416,8 @@
         <input type="number" class="num" id="set-cap" value="30" min="1">
         <span class="hint"> — berhenti otomatis setelah tercapai (anti-ban)</span>
       </div>
+      <button class="btn btn-green" id="btn-save-settings" style="width:100%;justify-content:center;">💾 Simpan Pengaturan</button>
+      <div class="hint" id="settings-status" style="margin-top:6px;text-align:center;"></div>
     </div>
     <div class="section-card">
       <div class="section-title">WhatsApp Web</div>

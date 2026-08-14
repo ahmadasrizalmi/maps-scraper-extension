@@ -68,6 +68,14 @@ Google Maps tab
          follow-up WhatsApp (wa.me + jeda acak)
 ```
 
+## v3.8.3 — Penyimpanan settings bulletproof + tombol Simpan
+
+- **Tombol "💾 Simpan Pengaturan"** eksplisit di tab Pengaturan + indikator "✓ Tersimpan jam:menit:detik".
+- Save otomatis di **banyak titik**: saat mengetik (300ms), saat blur/change, saat pindah tab, dan saat panel ditutup (`beforeunload`).
+- **Anti-interferensi autofill**: `autocomplete="new-password"` + tombol 👁 lihat/sembunyikan key (password manager kadang mengosongkan field password).
+- Log ke console (`[Settings] tersimpan` / `GAGAL menyimpan`) supaya kalau ada error bisa terlihat.
+- Jika setelah update ini key masih hilang, cek console (F12 di side panel): kalau ada `GAGAL menyimpan`, itu indikasi masalah permission storage.
+
 ## v3.8.2 — Auto-save settings, status login WA persisten, unlimited storage
 
 - **Settings auto-save**: API key, model, jasa/produk, gaya bahasa, dll. tersimpan otomatis saat diketik (400ms setelah berhenti mengetik) + indikator "✓ Tersimpan" — tidak perlu tombol Save, tidak perlu input ulang.
