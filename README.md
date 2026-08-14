@@ -3,8 +3,6 @@
 > **Kumpulkan → Saring → Kirim → Lacak → Follow-up**
 > Scrape bisnis dari Google Maps, kirim penawaran via WhatsApp secara personal (didukung AI DeepSeek), dan kelola follow-up — semua dalam satu panel samping.
 
-![Tab Leads](docs/screenshots/tab-leads.png)
-
 ## ✨ Fitur utama
 
 | Fitur | Keterangan |
