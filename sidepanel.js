@@ -8,6 +8,7 @@ let filteredLeads = [];
 let waSettings = { apiKey:'', sender:'', model:'deepseek-v4-flash', offer:'', link:'', tone:'ramah', chunkMin:3, chunkMax:8, dailyCap:30 };
 let pendingImages = []; // [{name, type, dataUrl}]
 let sendState = { running:false, stop:false };
+let sessions = []; // riwayat sesi pengiriman
 const msgCache = new Map(); // (fu:)?nama -> pesan yang sudah di-generate
 const wait = ms => new Promise(r => setTimeout(r, ms));
 const $ = id => document.getElementById(id);
@@ -77,7 +78,8 @@ function normalizeLead(l) {
     id: l.id || (l.url || l.name || Math.random().toString(36).slice(2)),
     status: l.status || 'baru',
     sentAt: l.sentAt || null,
-    lastError: l.lastError || ''
+    lastError: l.lastError || '',
+    history: Array.isArray(l.history) ? l.history : []
   };
 }
 
@@ -85,7 +87,7 @@ function normalizeLead(l) {
 
 function switchTab(name) {
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === name));
-  ['tab-leads','tab-kirim','tab-pengaturan'].forEach(id => $(id).classList.toggle('active', id === 'tab-' + name));
+  ['tab-leads','tab-kirim','tab-pengaturan','tab-riwayat'].forEach(id => $(id).classList.toggle('active', id === 'tab-' + name));
   if (name === 'kirim') updateTargetInfo();
 }
 
@@ -235,7 +237,7 @@ function renderLeads() {
     const wa = normalizePhone(l.phone);
     return `<tr>
       <td>${(idx.get(l) ?? 0) + 1}</td>
-      <td class="cell-name" title="${esc(l.name)}">${esc(l.name || '-')}</td>
+      <td class="cell-name" title="${esc(nameTitle(l))}">${esc(l.name || '-')}</td>
       <td title="${esc(l.category)}">${esc(l.category || '-')}</td>
       <td class="cell-rating">${l.rating ? `★${l.rating}` : '-'}</td>
       <td class="cell-phone">${l.phone ? `<a href="tel:${l.phone}">${esc(l.phone)}</a>` : '-'}</td>
@@ -254,8 +256,58 @@ function setStatus(id, status) {
   if (!l) return;
   l.status = status;
   if (status === 'terkirim' && !l.sentAt) l.sentAt = new Date().toISOString();
+  logHistory(l, status);
   applyFilters();
   saveLeads();
+}
+
+// ─── Riwayat (per lead + per sesi) ────────────────────────────────
+
+function logHistory(lead, e, note) {
+  if (!lead.history) lead.history = [];
+  lead.history.push({ t: new Date().toISOString(), e, note: note || '' });
+  if (lead.history.length > 30) lead.history = lead.history.slice(-30);
+}
+
+async function saveSession(session) {
+  const s = await chrome.storage.local.get('mapsSessions');
+  let arr = s.mapsSessions || [];
+  arr.push(session);
+  if (arr.length > 50) arr = arr.slice(-50);
+  sessions = arr;
+  await chrome.storage.local.set({ mapsSessions: arr });
+}
+
+async function loadSessions() {
+  const s = await chrome.storage.local.get('mapsSessions');
+  sessions = s.mapsSessions || [];
+}
+
+function renderRiwayat() {
+  const el = $('sessions-list');
+  if (!el) return;
+  if (!sessions.length) {
+    el.innerHTML = '<div class="empty-state" style="padding:20px;">Belum ada riwayat pengiriman.</div>';
+    return;
+  }
+  el.innerHTML = sessions.slice().reverse().map(s => {
+    const d = new Date(s.t);
+    const ds = d.toLocaleString('id-ID', { day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' });
+    return `<div class="sess-item">
+      <div class="row" style="justify-content:space-between;">
+        <b>${esc(ds)}</b>
+        <span class="hint">${s.mode === 'followup' ? 'Follow-up' : 'Target baru'}</span>
+      </div>
+      <div class="hint">Terkirim <b style="color:var(--green)">${s.sent}</b> · Gagal <b style="color:var(--red)">${s.failed}</b> · Total ${s.total}</div>
+    </div>`;
+  }).join('');
+}
+
+function nameTitle(l) {
+  const h = l.history || [];
+  if (!h.length) return l.name || '';
+  return (l.name || '') + '\n— Riwayat —\n' +
+    h.slice(-6).map(x => `${x.t.slice(0,10)} ${x.t.slice(11,16)} ${x.e}${x.note ? ' (' + x.note + ')' : ''}`).join('\n');
 }
 
 function updateStats() {
@@ -464,6 +516,7 @@ async function sendWA() {
   $('send-report').textContent = '';
   
   let sent = 0, fail = 0;
+  const session = { id: Date.now(), t: new Date().toISOString(), mode: $('target-followup').checked ? 'followup' : 'baru', sent: 0, failed: 0, total: queue.length };
   try {
     for (let i = 0; i < queue.length; i++) {
       if (sendState.stop) break;
@@ -471,7 +524,8 @@ async function sendWA() {
       const num = normalizePhone(l.phone);
       if (!num) {
         l.status = 'invalid'; l.lastError = 'tidak ada nomor';
-        fail++;
+        logHistory(l, 'invalid', 'tidak ada nomor');
+        fail++; session.failed++;
         continue;
       }
       const followUp = (l.status || 'baru') === 'terkirim';
@@ -493,15 +547,17 @@ async function sendWA() {
       });
       
       if (res?.ok && res.sent > 0) {
-        sent++;
+        sent++; session.sent++;
         l.status = 'terkirim';
         l.sentAt = new Date().toISOString();
         l.lastError = '';
+        logHistory(l, followUp ? 'followup' : 'kirim');
         await bumpWACount();
       } else {
-        fail++;
+        fail++; session.failed++;
         l.status = 'invalid';
         l.lastError = res?.error || 'gagal kirim';
+        logHistory(l, 'invalid', l.lastError);
         console.warn('[WA] gagal:', l.name, l.lastError);
       }
       $('send-report').textContent = `Terkirim ${sent} · Gagal ${fail} · Total ${queue.length}`;
@@ -524,6 +580,8 @@ async function sendWA() {
     hideProgress();
     renderLeads();
     saveLeads();
+    await saveSession(session);
+    renderRiwayat();
     toast(sendState.stop ? `Dihentikan — ${sent} terkirim` : `Selesai: ${sent} terkirim, ${fail} gagal`);
   }
 }
@@ -592,6 +650,13 @@ $('wa-image').addEventListener('change', async (e) => {
 
 $('btn-wa-login').addEventListener('click', waLoginCheck);
 
+$('btn-clear-sessions').addEventListener('click', async () => {
+  sessions = [];
+  await chrome.storage.local.remove('mapsSessions');
+  renderRiwayat();
+  toast('Riwayat dikosongkan');
+});
+
 // rAF-throttled progress
 let pendingProgress = null;
 let rafScheduled = false;
@@ -612,6 +677,8 @@ chrome.runtime.onMessage.addListener((msg) => {
 (async function init() {
   await loadSettings();
   await loadLeads();
+  await loadSessions();
   switchTab('leads');
   updateTargetInfo();
+  renderRiwayat();
 })();

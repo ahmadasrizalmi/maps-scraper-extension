@@ -68,6 +68,14 @@ Google Maps tab
          follow-up WhatsApp (wa.me + jeda acak)
 ```
 
+## v3.8 — Riwayat sesi & history per lead
+
+Sebelumnya setiap lead hanya menyimpan **status terakhir + tanggal kirim terakhir** — sesi follow-up yang berbeda tercampur. Sekarang:
+
+- **History per lead** (`lead.history`): daftar event berurutan (`kirim`, `followup`, `dibalas`, `invalid`, `skip`) dengan tanggal. Lihat dengan mengarahkan kursor ke nama bisnis di tab Leads (tooltip).
+- **Riwayat sesi** (tab baru): setiap run pengiriman tercatat — tanggal, mode (target baru / follow-up), terkirim/gagal/total. Tersimpan maks 50 sesi terakhir, bisa dikosongkan.
+- Tetap tersimpan di `chrome.storage.local` (tanpa server).
+
 ## v3.7 — Desain ulang total (alur: Kumpulkan → Saring → Kirim → Lacak → Follow-up)
 
 ### Audit fitur (yang tidak berfungsi disingkirkan)

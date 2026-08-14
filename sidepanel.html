@@ -197,6 +197,11 @@
     
     .note { font-size: 11px; color: var(--gray-500); background: var(--gray-100); padding: 8px 10px; border-radius: var(--radius-sm); line-height: 1.5; margin-top: 10px; }
     
+    /* ─── Tab: Riwayat ─────────────────────────────── */
+    
+    .sess-item { background: var(--gray-50); border-radius: var(--radius-sm); padding: 8px 10px; margin-bottom: 6px; }
+    .sess-item b { font-size: 11px; }
+    
     .toast {
       position: fixed; bottom: 60px; left: 50%;
       transform: translateX(-50%) translateY(20px);
@@ -233,6 +238,7 @@
     <button class="tab-btn active" data-tab="leads">Leads</button>
     <button class="tab-btn" data-tab="kirim">Kirim</button>
     <button class="tab-btn" data-tab="pengaturan">Pengaturan</button>
+    <button class="tab-btn" data-tab="riwayat">Riwayat</button>
   </div>
   
   <!-- Progress (global) -->
@@ -417,6 +423,16 @@
         <b>Alur pemakaian:</b> 1) Scrape lead di tab Leads. 2) Saring dengan filter status/kategori. 3) Di tab Kirim, pilih target, susun pesan, lihat contoh, lalu Kirim. Lead yang terkirim otomatis berstatus <b>Terkirim</b>; yang gagal (nomor tidak punya WA) menjadi <b>Invalid</b>; yang dibalas Anda tandai <b>Dibalas</b>. Follow-up hanya menyasar yang belum dibalas. Semua tersimpan otomatis.
       </div>
     </div>
+  </section>
+  
+  <!-- ═══════ Tab: RIWAYAT ═══════ -->
+  <section class="tab-panel" id="tab-riwayat">
+    <div class="section-card">
+      <div class="section-title">Riwayat sesi pengiriman</div>
+      <div id="sessions-list"></div>
+      <button class="btn btn-red" id="btn-clear-sessions" style="margin-top:10px;width:100%;justify-content:center;">Kosongkan riwayat</button>
+    </div>
+    <div class="note">Riwayat lengkap per lead bisa dilihat dengan mengarahkan kursor ke nama bisnis di tab <b>Leads</b> (tooltip berisi tanggal & event terakhir).</div>
   </section>
   
   <div class="toast" id="toast"></div>
