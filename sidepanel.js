@@ -1,5 +1,6 @@
-// Maps Lead Scraper — Side Panel v3.2
-// Simplified: Name, Category, Rating, Address, Phone, Website, Email
+// Maps Lead Scraper — Side Panel v3.3 (optimized)
+// Changes: O(1) index lookups (WeakMap), debounced search, rAF-throttled
+// progress, revoked object URLs, simplified: Name/Category/Rating/Address/Phone/Website/Email
 // Export: CSV + Google Sheets (clipboard paste)
 
 let leads = [];
@@ -8,6 +9,12 @@ let sortField = 'index';
 let sortDir = 'asc';
 
 const $ = id => document.getElementById(id);
+const leadIndex = new WeakMap(); // lead object -> original index (kills O(n) indexOf)
+
+function indexLeads() {
+  leadIndex.clear();
+  leads.forEach((l, i) => leadIndex.set(l, i));
+}
 
 // ─── Init ──────────────────────────────────────────────────────────
 
@@ -25,6 +32,7 @@ async function init() {
   if (saved.mapsLeads?.leads?.length) {
     leads = saved.mapsLeads.leads;
     filteredLeads = [...leads];
+    indexLeads();
     render();
   }
 }
@@ -110,7 +118,7 @@ function applyFilters() {
   filteredLeads.sort((a, b) => {
     let va = a[sortField] ?? '';
     let vb = b[sortField] ?? '';
-    if (sortField === 'index') { va = leads.indexOf(a); vb = leads.indexOf(b); }
+    if (sortField === 'index') { va = leadIndex.get(a) ?? 0; vb = leadIndex.get(b) ?? 0; }
     else if (['rating'].includes(sortField)) { va = va || 0; vb = vb || 0; }
     else { va = String(va).toLowerCase(); vb = String(vb).toLowerCase(); }
     return va < vb ? (sortDir === 'asc' ? -1 : 1) : va > vb ? (sortDir === 'asc' ? 1 : -1) : 0;
@@ -134,7 +142,7 @@ function render() {
   wrap.style.display = '';
   
   tbody.innerHTML = filteredLeads.map((l) => {
-    const i = leads.indexOf(l) + 1;
+    const i = (leadIndex.get(l) ?? 0) + 1;
     return `<tr>
       <td>${i}</td>
       <td class="cell-name" title="${esc(l.name)}">${esc(l.name || '-')}</td>
@@ -187,6 +195,7 @@ async function scrape() {
     
     leads = response.leads || [];
     filteredLeads = [...leads];
+    indexLeads();
     render();
     
     toast(`${leads.length} leads scraped${response.elapsed ? ` in ${response.elapsed}s` : ''}`);
@@ -205,6 +214,7 @@ async function loadLeads() {
   if (saved.mapsLeads?.leads?.length) {
     leads = saved.mapsLeads.leads;
     filteredLeads = [...leads];
+    indexLeads();
     render();
     toast(`Loaded ${leads.length} leads`);
   } else {
@@ -248,7 +258,12 @@ function exportSheets() {
 
 function q(s){if(!s)return '';s=String(s);return(s.includes(',')||s.includes('"'))?`"${s.replace(/"/g,'""')}"`:s;}
 function date(){return new Date().toISOString().split('T')[0];}
-function download(c,n,m){const b=new Blob([c],{type:m});chrome.downloads.download({url:URL.createObjectURL(b),filename:n,saveAs:true});}
+function download(c,n,m){
+  const url = URL.createObjectURL(new Blob([c],{type:m}));
+  chrome.downloads.download({url, filename:n, saveAs:true});
+  // Revoke the object URL after the download had time to start (memory leak fix)
+  setTimeout(() => URL.revokeObjectURL(url), 30000);
+}
 
 // ─── Events ────────────────────────────────────────────────────────
 
@@ -269,7 +284,12 @@ $('btn-csv').addEventListener('click', exportCSV);
 $('btn-sheets').addEventListener('click', exportSheets);
 $('btn-open-maps').addEventListener('click', () => chrome.tabs.create({ url: 'https://www.google.com/maps' }));
 
-$('search-input').addEventListener('input', applyFilters);
+// Debounced search — rebuild the table at most every 150ms while typing
+let searchTimer = null;
+$('search-input').addEventListener('input', () => {
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(applyFilters, 150);
+});
 $('filter-rating').addEventListener('change', applyFilters);
 $('filter-has').addEventListener('change', applyFilters);
 
@@ -282,10 +302,19 @@ document.querySelectorAll('.results-table th[data-sort]').forEach(th => {
   });
 });
 
+// rAF-throttled progress rendering — coalesce bursts of PROGRESS messages
+let pendingProgress = null;
+let rafScheduled = false;
 chrome.runtime.onMessage.addListener((msg) => {
-  if (msg.type === 'PROGRESS') {
-    showProgress(msg.text, msg.percent, msg.eta);
-  }
+  if (msg.type !== 'PROGRESS') return;
+  pendingProgress = msg;
+  if (rafScheduled) return;
+  rafScheduled = true;
+  requestAnimationFrame(() => {
+    rafScheduled = false;
+    if (pendingProgress) showProgress(pendingProgress.text, pendingProgress.percent, pendingProgress.eta);
+    pendingProgress = null;
+  });
 });
 
 // ─── Start ─────────────────────────────────────────────────────────

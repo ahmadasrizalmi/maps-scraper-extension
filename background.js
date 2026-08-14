@@ -1,32 +1,38 @@
-// Background service worker — Maps Lead Scraper v2.0
+// Background service worker — Maps Lead Scraper v3.3 (optimized)
 // Side panel lifecycle + message forwarding
+// Note: removed the dead onMessage listener that held message channels
+// open (it returned true without ever calling sendResponse).
 
 // Open side panel when extension icon is clicked
 chrome.action.onClicked.addListener(async (tab) => {
-  if (tab.url?.includes('google.com/maps')) {
-    await chrome.sidePanel.open({ tabId: tab.id });
-  } else {
-    // Open Google Maps
-    chrome.tabs.create({ url: 'https://www.google.com/maps' });
+  try {
+    if (tab.url?.includes('google.com/maps')) {
+      await chrome.sidePanel.open({ tabId: tab.id });
+    } else {
+      // Open Google Maps
+      await chrome.tabs.create({ url: 'https://www.google.com/maps' });
+    }
+  } catch (e) {
+    console.warn('[Maps Lead Scraper] action handler:', e);
   }
 });
 
 // Enable side panel on Google Maps pages
 chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
   if (changeInfo.status === 'complete' && tab.url?.includes('google.com/maps')) {
-    await chrome.sidePanel.setOptions({
-      tabId,
-      path: 'sidepanel.html',
-      enabled: true
-    });
+    try {
+      await chrome.sidePanel.setOptions({
+        tabId,
+        path: 'sidepanel.html',
+        enabled: true
+      });
+    } catch (e) {
+      // tab may have been closed before the promise resolved
+    }
   }
 });
 
-// Forward messages between content script and side panel
-chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
-  // Progress messages from content script are auto-forwarded to side panel
-  // via chrome.runtime.onMessage (all listeners receive them)
-  return true;
-});
+// Progress messages from content script are received directly by the
+// side panel's own chrome.runtime.onMessage listener — nothing to relay.
 
-console.log('[Maps Lead Scraper] Background v2.0 loaded');
+console.log('[Maps Lead Scraper] Background v3.3 loaded');
