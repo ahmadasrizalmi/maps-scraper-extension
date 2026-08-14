@@ -1,4 +1,4 @@
-// Maps Lead Scraper — WhatsApp Web content script v3.7
+// Maps Lead Scraper — WhatsApp Web content script v3.8.1
 // Runs on web.whatsapp.com. Receives commands from the side panel:
 //   WA_PING  → report if the app is loaded & logged in
 //   WA_SEND  → attach images, type chunks like a human, click send
@@ -127,7 +127,11 @@
   chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 
     if (msg.type === 'WA_PING') {
-      sendResponse({ loggedIn: !!inputBox() });
+      // Deteksi login: input chat terbuka ATAU shell aplikasi (chat list / tombol new chat).
+      // Catatan: di layar utama (tanpa chat terbuka) kotak input TIDAK ada — jangan salah
+      // dianggap belum login hanya karena input box tidak ditemukan.
+      const shell = !!document.querySelector('button[data-testid="chat"], #side, div[data-testid="chat-list"], div[aria-label="Main menu"]');
+      sendResponse({ loggedIn: !!inputBox() || shell });
       return true;
     }
 

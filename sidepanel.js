@@ -1,4 +1,4 @@
-// Maps Lead Scraper — Side Panel v3.7 (redesign arsitektur)
+// Maps Lead Scraper — Side Panel v3.8.1 (fix: deteksi login WA Web + auto-reload tab)
 // Alur: Kumpulkan → Saring → Kirim → Lacak → Follow-up
 // Setiap lead punya status: baru | terkirim | dibalas | invalid | skip
 // Semua tersimpan otomatis di chrome.storage.
@@ -470,6 +470,19 @@ async function sendToWATab(tabId, msg, attempts = 20) {
   return { ok: false, error: 'Tab WA tidak merespons' };
 }
 
+// Pastikan tab WA siap: content script terpasang & terdeteksi login.
+// Kalau tab sudah terbuka sebelum extension di-install/di-reload, content
+// script tidak ter-inject otomatis → tab di-reload dulu, lalu dicek ulang.
+async function ensureWATabReady() {
+  const tab = await getWATab();
+  let res = await sendToWATab(tab.id, { type: 'WA_PING' }, 8);
+  if (res?.loggedIn) return { tab, loggedIn: true };
+  try { await chrome.tabs.reload(tab.id); } catch (e) {}
+  await wait(6000);
+  res = await sendToWATab(tab.id, { type: 'WA_PING' }, 30);
+  return { tab, loggedIn: !!res?.loggedIn };
+}
+
 async function waCountToday() {
   const today = new Date().toISOString().split('T')[0];
   const d = await chrome.storage.local.get('waDaily');
@@ -496,11 +509,9 @@ async function sendWA() {
   if (used >= waSettings.dailyCap) { toast(`Batas harian tercapai (${waSettings.dailyCap}). Coba besok.`); return; }
   const queue = tg.slice(0, Math.max(0, waSettings.dailyCap - used)).sort(() => Math.random() - 0.5);
   
-  // Cek login WhatsApp Web
-  const waTab = await getWATab();
-  await wait(2500);
-  const ping = await sendToWATab(waTab.id, { type: 'WA_PING' }, 30);
-  if (!ping?.loggedIn) {
+  // Cek login WhatsApp Web (reload tab otomatis jika content script belum terpasang)
+  const { tab: waTab, loggedIn } = await ensureWATabReady();
+  if (!loggedIn) {
     $('wa-login-status').textContent = 'Belum login — buka tab WA & scan QR';
     toast('Login WhatsApp Web dulu (tab Pengaturan → Login WA Web)');
     return;
@@ -589,12 +600,12 @@ async function sendWA() {
 // ─── WhatsApp Web login helper ──────────────────────────────────────
 
 async function waLoginCheck() {
-  const tab = await getWATab();
-  await chrome.tabs.update(tab.id, { active: true });
   $('wa-login-status').textContent = 'mengecek…';
-  await wait(2500);
-  const res = await sendToWATab(tab.id, { type: 'WA_PING' }, 15);
-  $('wa-login-status').textContent = res?.loggedIn ? '✓ Sudah login' : 'Belum login — scan QR di tab WhatsApp Web';
+  const { tab, loggedIn } = await ensureWATabReady();
+  await chrome.tabs.update(tab.id, { active: true });
+  $('wa-login-status').textContent = loggedIn
+    ? '✓ Sudah login'
+    : 'Belum login — buka tab WhatsApp Web & scan QR (tab sudah di-reload)';
 }
 
 // ─── Events ─────────────────────────────────────────────────────────
