@@ -1,6 +1,6 @@
-// Maps Lead Scraper — Side Panel v3.4
-// v3.4: email extraction moved here (extension page fetch = no CORS),
-// WhatsApp follow-up queue with random human-like delays.
+// Maps Lead Scraper — Side Panel v3.6
+// v3.6: input gambar, settings LLM terstruktur (jasa/produk, link, gaya
+// bahasa), monitoring terkirim/gagal, deteksi nomor tidak terdaftar.
 // Export: CSV + Google Sheets (clipboard paste)
 
 let leads = [];
@@ -247,10 +247,12 @@ async function extractEmailsFromWebsites(leads, onProgress) {
 let waRunning = false;
 let waStop = false;
 let waSettings = {
-  apiKey: '', sender: '', model: 'deepseek-v4-flash', instruction: '',
+  apiKey: '', sender: '', model: 'deepseek-v4-flash',
+  offer: '', link: '', tone: 'ramah',
   chunkMin: 3, chunkMax: 8, dailyCap: 30, mode: 'auto'
 };
 const msgCache = new Map(); // nama lead -> pesan yang sudah di-generate
+let pendingImages = []; // [{name, type, dataUrl}] gambar untuk dikirim
 
 const wait = ms => new Promise(r => setTimeout(r, ms));
 
@@ -260,7 +262,9 @@ async function loadWASettings() {
   $('wa-api-key').value = waSettings.apiKey;
   $('wa-sender').value = waSettings.sender;
   $('wa-model').value = waSettings.model;
-  $('wa-instruction').value = waSettings.instruction;
+  $('wa-offer').value = waSettings.offer;
+  $('wa-link').value = waSettings.link || '';
+  $('wa-tone').value = waSettings.tone;
   $('wa-chunk-min').value = waSettings.chunkMin;
   $('wa-chunk-max').value = waSettings.chunkMax;
   $('wa-cap').value = waSettings.dailyCap;
@@ -272,7 +276,9 @@ async function saveWASettings() {
     apiKey: $('wa-api-key').value.trim(),
     sender: $('wa-sender').value.trim(),
     model: $('wa-model').value,
-    instruction: $('wa-instruction').value.trim(),
+    offer: $('wa-offer').value.trim(),
+    link: $('wa-link').value.trim(),
+    tone: $('wa-tone').value,
     chunkMin: Math.max(1, parseInt($('wa-chunk-min').value, 10) || 3),
     chunkMax: Math.max(2, parseInt($('wa-chunk-max').value, 10) || 8),
     dailyCap: Math.max(1, parseInt($('wa-cap').value, 10) || 30),
@@ -294,13 +300,25 @@ async function bumpWACount() {
   await chrome.storage.local.set({ waDaily: { date: today, count: count + 1 } });
 }
 
+// Gaya bahasa yang bisa dipilih user
+const TONES = {
+  ramah: 'Bahasa santai namun sopan, hangat, dan akrab.',
+  formal: 'Bahasa formal dan sopan, sapa dengan Bapak/Ibu.',
+  profesional: 'Bahasa profesional, jelas, langsung ke poin.',
+  persuasif: 'Bahasa persuasif, tonjolkan manfaat jasa/produk, dorong untuk mencoba.',
+  singkat: 'Pesan singkat dan padat, langsung ke inti, maksimal 80 kata.'
+};
+
 // Pesan personal via DeepSeek (deepseek-v4-flash, non-thinking)
 async function generateMessage(lead) {
   if (!waSettings.apiKey) return null;
   try {
     const sender = waSettings.sender || '[NAMA ANDA]';
-    const system = 'Kamu adalah asisten pemasaran yang menulis pesan WhatsApp singkat, sopan, natural, dalam Bahasa Indonesia. Tanpa markdown, tanpa emoji berlebihan, tanpa judul. Maksimal 200 kata.';
-    const user = `Tulis pesan follow-up WhatsApp untuk pemilik bisnis ini.\nNama bisnis: ${lead.name}\nKategori: ${lead.category || '-'}\nAlamat: ${lead.address || '-'}\nPengirim: ${sender}\nGaya: perkenalkan diri singkat sebagai ${sender}, sapa pemilik ${lead.name}, sampaikan tujuan (${waSettings.instruction || 'menawarkan kerja sama / produk Anda'}), dan akhiri dengan terima kasih.`;
+    const tone = TONES[waSettings.tone] || TONES.ramah;
+    const offer = waSettings.offer || 'menawarkan kerja sama / produk Anda';
+    const link = waSettings.link ? `\nLink web/portfolio pengirim: ${waSettings.link}` : '';
+    const system = 'Kamu adalah asisten pemasaran yang menulis pesan WhatsApp singkat, sopan, natural, dalam Bahasa Indonesia. Tanpa markdown, tanpa emoji berlebihan, tanpa judul, tanpa bullet. Maksimal 200 kata.';
+    const user = `Tulis pesan follow-up WhatsApp untuk pemilik bisnis ini.\nNama bisnis: ${lead.name}\nKategori: ${lead.category || '-'}\nAlamat: ${lead.address || '-'}\nPengirim: ${sender}\nJasa/produk yang ditawarkan: ${offer}${link}\nGaya bahasa: ${tone}\nStruktur: sapa pemilik ${lead.name}, perkenalkan diri singkat, sampaikan penawaran beserta manfaatnya, ajak merespons, akhiri dengan terima kasih.`;
     const r = await fetch('https://api.deepseek.com/chat/completions', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + waSettings.apiKey },
@@ -379,6 +397,8 @@ async function followUpWA() {
   waStop = false;
   $('btn-wa').disabled = true;
   $('btn-wa-stop').disabled = false;
+  let sentCnt = 0, failCnt = 0;
+  const report = () => `Terkirim ${sentCnt} · Gagal ${failCnt} · Total ${queue.length}`;
   
   try {
     if (waSettings.mode === 'auto') {
@@ -391,6 +411,8 @@ async function followUpWA() {
         return;
       }
       
+      $('wa-report').textContent = '';
+      
       for (let i = 0; i < queue.length; i++) {
         if (waStop) break;
         const l = queue[i];
@@ -402,21 +424,30 @@ async function followUpWA() {
         const chunks = splitMessage(msg || WA_TEMPLATE(l.name));
         if (!chunks.length) continue;
         
-        const url = `https://web.whatsapp.com/send?phone=${num}&text=${encodeURIComponent(chunks[0])}`;
-        showProgress(`WA: ${l.name} — buka chat & kirim… (${i + 1}/${queue.length})`, Math.round((i + 1) / queue.length * 100));
+        const withImg = pendingImages.length > 0;
+        const url = withImg
+          ? `https://web.whatsapp.com/send?phone=${num}`
+          : `https://web.whatsapp.com/send?phone=${num}&text=${encodeURIComponent(chunks[0])}`;
+        showProgress(`WA: ${l.name} (${i + 1}/${queue.length}) — ${report()}`, Math.round((i + 1) / queue.length * 100));
         
         await chrome.tabs.update(waTab.id, { url, active: false });
         await wait(4500); // reload halaman + boot aplikasi
         
-        const res = await sendToWATab(waTab.id, { type: 'WA_SEND', chunks: chunks.slice(1), prefill: chunks[0] });
-        if (res?.ok && res.sent > 0) await bumpWACount();
+        const res = await sendToWATab(waTab.id, {
+          type: 'WA_SEND',
+          chunks: chunks.slice(1),
+          prefill: chunks[0],
+          images: withImg ? pendingImages : []
+        });
+        if (res?.ok && res.sent > 0) { sentCnt++; await bumpWACount(); }
+        else { failCnt++; console.warn('[WA] gagal untuk', l.name, res?.error || 'tidak ada respon'); }
         
         if (i < queue.length - 1 && !waStop) {
           const delay = Math.round((minS + Math.random() * (maxS - minS)) * 1000);
-          showProgress(`WA: ${i + 1}/${queue.length} selesai. Berikutnya (${queue[i + 1].name}) dalam ~${Math.round(delay / 1000)}s`, Math.round((i + 1) / queue.length * 100));
+          showProgress(`WA: ${i + 1}/${queue.length} selesai — ${report()}. Berikutnya (${queue[i + 1].name}) dalam ~${Math.round(delay / 1000)}s`, Math.round((i + 1) / queue.length * 100));
           await wait(delay);
         } else {
-          showProgress(`WA: selesai ${i + 1}/${queue.length}`, 100);
+          showProgress(`WA: selesai ${i + 1}/${queue.length} — ${report()}`, 100);
         }
       }
     } else {
@@ -441,6 +472,7 @@ async function followUpWA() {
     $('btn-wa').disabled = false;
     $('btn-wa-stop').disabled = true;
     hideProgress();
+    if (waSettings.mode === 'auto') $('wa-report').textContent = report();
     toast(waStop ? 'Follow up WA dihentikan' : `Selesai: ${queue.length} chat`);
   }
 }
@@ -591,6 +623,23 @@ $('btn-open-maps').addEventListener('click', () => chrome.tabs.create({ url: 'ht
 
 $('btn-wa').addEventListener('click', followUpWA);
 $('btn-wa-stop').addEventListener('click', stopFollowUpWA);
+
+// Pilih gambar untuk dikirim bersama pesan
+$('wa-image').addEventListener('change', async (e) => {
+  const files = [...e.target.files];
+  const imgs = [];
+  for (const f of files) {
+    const dataUrl = await new Promise(res => {
+      const fr = new FileReader();
+      fr.onload = () => res(fr.result);
+      fr.readAsDataURL(f);
+    });
+    imgs.push({ name: f.name, type: f.type, dataUrl });
+  }
+  pendingImages = imgs;
+  $('wa-image-label').textContent = imgs.length ? imgs.map(i => i.name).join(', ') : 'belum ada gambar';
+  e.target.value = ''; // izinkan pilih file yang sama lagi
+});
 
 // Debounced search — rebuild the table at most every 150ms while typing
 let searchTimer = null;

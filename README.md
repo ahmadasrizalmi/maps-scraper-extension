@@ -9,6 +9,9 @@ Scrape business leads from Google Maps (name, category, rating, address, phone, 
 - **Extract emails** — cari email di website bisnis (diekstrak di side panel, bebas CORS)
 - **Follow up WhatsApp** — buka chat WA tiap lead (`wa.me`) dengan urutan acak + jeda acak anti-ban
 - **Auto-send WA via AI** — mode Auto mengetik & mengirim pesan di WhatsApp Web; pesan dipersonalisasi per bisnis oleh DeepSeek (`deepseek-v4-flash`), dipotong jadi beberapa pesan pendek seperti manusia
+- **Kirim gambar** — lampirkan 1+ gambar bersama pesan
+- **Pesan tersusun otomatis** — input jasa/produk, link portfolio, nama pengirim, gaya bahasa → AI merangkai pesan
+- **Monitoring** — hitungan terkirim/gagal live + laporan akhir
 - **Deduplicate** — hilangkan duplikat berdasarkan nama
 - **Filter & sort** — cari, filter rating, filter "punya phone/website/email", sort per kolom
 - **Auto-scroll** — scroll feed hasil pencarian secara otomatis (jumlah scroll adaptif)
@@ -64,6 +67,29 @@ Google Maps tab
          ekstraksi email (fetch bebas CORS — extension page)
          follow-up WhatsApp (wa.me + jeda acak)
 ```
+
+## Optimasi v3.6 (input gambar, settings AI terstruktur, monitoring)
+
+### Input gambar
+- Pilih 1+ gambar di settings → dikirim sebagai lampiran WA bersama pesan (gambar pertama jadi caption).
+- Gambar di-attach via input file tersembunyi WhatsApp Web (`DataTransfer`), menunggu preview muncul, ketik caption, kirim.
+- Batas: ukuran wajar (< 16MB), format jpg/png/webp/heic.
+
+### Settings AI terstruktur (menggantikan "instruksi" bebas)
+- **Jasa/produk yang ditawarkan** — isi apa yang mau ditawarkan, LLM merangkai kalimatnya.
+- **Link web/portfolio** — disertakan dalam pesan.
+- **Nama pengirim** — identitas pengirim.
+- **Gaya bahasa** — pilihan: Ramah, Formal, Profesional, Persuasif, Singkat.
+- LLM (`deepseek-v4-flash`, non-thinking) menyusun pesan dari semua input + data lead (nama bisnis, kategori, alamat).
+
+### Monitoring pengiriman
+- Progress bar menampilkan `Terkirim X · Gagal Y · Total Z` secara live.
+- Laporan akhir permanen di baris WA (hijau) + toast ringkasan.
+- Gagal dicatat dengan alasan di console (mis. "nomor tidak terdaftar / chat tidak terbuka").
+
+### Deteksi nomor yang terdaftar di WhatsApp
+- Validasi penuh gratis tidak tersedia (butuh WhatsApp Business API berbayar), jadi validasi dilakukan **inline saat kirim**: nomor yang chat-nya tidak terbuka (tidak terdaftar) ditandai gagal & dilewati, lalu muncul di laporan.
+- Dialog "nomor tidak dikenal" otomatis di-OK-kan supaya tidak memblokir antrian.
 
 ## Optimasi v3.5 (auto-send WhatsApp + AI DeepSeek)
 
