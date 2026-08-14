@@ -135,6 +135,32 @@
       return true;
     }
 
+    if (msg.type === 'WA_LOGOUT') {
+      (async () => {
+        try {
+          // Buka menu utama (tiga titik)
+          const menu = await waitFor('div[aria-label="Main menu"], button[aria-label="Menu"]', 8000);
+          if (!menu) { sendResponse({ ok: false, error: 'menu utama tidak ditemukan' }); return; }
+          menu.click();
+          await wait(900);
+          // Cari item "Log out"
+          const items = [...document.querySelectorAll('div[role="menuitem"], li[role="menuitem"]')];
+          const logoutItem = items.find(el => /log out|keluar/i.test(el.textContent || ''));
+          if (!logoutItem) { sendResponse({ ok: false, error: 'item Log out tidak ditemukan' }); return; }
+          logoutItem.click();
+          await wait(900);
+          // Konfirmasi dialog
+          const confirm = [...document.querySelectorAll('div[role="dialog"] div[role="button"], div[role="dialog"] button')]
+            .find(b => /log out|keluar/i.test(b.textContent || ''));
+          if (confirm) confirm.click();
+          sendResponse({ ok: true });
+        } catch (e) {
+          sendResponse({ ok: false, error: e.message });
+        }
+      })();
+      return true;
+    }
+
     if (msg.type === 'WA_SEND') {
       (async () => {
         try {

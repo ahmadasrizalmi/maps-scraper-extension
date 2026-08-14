@@ -709,6 +709,18 @@ $('wa-image').addEventListener('change', async (e) => {
 
 $('btn-wa-login').addEventListener('click', waLoginCheck);
 
+// Logout WA Web: reset status persisten + coba logout otomatis di tab WA
+$('btn-wa-logout').addEventListener('click', async () => {
+  await persistWAStatus(false);
+  setWAStatusUI(false);
+  const tabs = await chrome.tabs.query({ url: 'https://web.whatsapp.com/*' });
+  if (!tabs.length) { toast('Status WA direset (tidak ada tab WA)'); return; }
+  await chrome.tabs.update(tabs[0].id, { active: true });
+  const res = await sendToWATab(tabs[0].id, { type: 'WA_LOGOUT' }, 10);
+  if (res?.ok) toast('Logout WhatsApp Web berhasil');
+  else toast('Klik Log out manual di menu ••• tab WA — status sudah direset');
+});
+
 // Auto-save settings saat diketik (tidak perlu tombol save)
 let settingsTimer = null;
 const SETTINGS_FIELDS = ['set-api-key','set-model','set-chunk-min','set-chunk-max','set-cap','msg-sender','msg-offer','msg-link','msg-tone'];
