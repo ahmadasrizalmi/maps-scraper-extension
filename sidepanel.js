@@ -407,9 +407,11 @@ async function followUpWA() {
       await wait(2500);
       const ping = await sendToWATab(waTab.id, { type: 'WA_PING' }, 30);
       if (!ping?.loggedIn) {
+        $('wa-status').textContent = 'Belum login — scan QR di tab WA';
         toast('Buka tab WhatsApp Web & scan QR dulu, lalu ulangi');
         return;
       }
+      $('wa-status').textContent = '✓ Sudah login';
       
       $('wa-report').textContent = '';
       
@@ -623,6 +625,17 @@ $('btn-open-maps').addEventListener('click', () => chrome.tabs.create({ url: 'ht
 
 $('btn-wa').addEventListener('click', followUpWA);
 $('btn-wa-stop').addEventListener('click', stopFollowUpWA);
+
+// Buka WhatsApp Web untuk login (scan QR) + cek status
+$('btn-wa-login').addEventListener('click', async () => {
+  const tab = await getWATab(); // cari atau buka tab web.whatsapp.com
+  await chrome.tabs.update(tab.id, { active: true });
+  const st = $('wa-status');
+  st.textContent = 'mengecek…';
+  await wait(2500);
+  const res = await sendToWATab(tab.id, { type: 'WA_PING' }, 15);
+  st.textContent = res?.loggedIn ? '✓ Sudah login' : 'Belum login — scan QR di tab WhatsApp Web';
+});
 
 // Pilih gambar untuk dikirim bersama pesan
 $('wa-image').addEventListener('change', async (e) => {
