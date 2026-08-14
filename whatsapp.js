@@ -1,4 +1,4 @@
-// Maps Lead Scraper — WhatsApp Web content script v3.6
+// Maps Lead Scraper — WhatsApp Web content script v3.7
 // Runs on web.whatsapp.com. Receives commands from the side panel:
 //   WA_PING  → report if the app is loaded & logged in
 //   WA_SEND  → attach images, type chunks like a human, click send
@@ -187,5 +187,5 @@
     }
   });
 
-  console.log('[Maps Lead Scraper] WhatsApp content script v3.6 ready');
+  console.log('[Maps Lead Scraper] WhatsApp content script v3.7 ready');
 })();

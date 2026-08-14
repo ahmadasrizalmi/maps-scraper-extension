@@ -1,65 +1,40 @@
-// Maps Lead Scraper — Side Panel v3.6
-// v3.6: input gambar, settings LLM terstruktur (jasa/produk, link, gaya
-// bahasa), monitoring terkirim/gagal, deteksi nomor tidak terdaftar.
-// Export: CSV + Google Sheets (clipboard paste)
+// Maps Lead Scraper — Side Panel v3.7 (redesign arsitektur)
+// Alur: Kumpulkan → Saring → Kirim → Lacak → Follow-up
+// Setiap lead punya status: baru | terkirim | dibalas | invalid | skip
+// Semua tersimpan otomatis di chrome.storage.
 
 let leads = [];
 let filteredLeads = [];
-let sortField = 'index';
-let sortDir = 'asc';
-
+let waSettings = { apiKey:'', sender:'', model:'deepseek-v4-flash', offer:'', link:'', tone:'ramah', chunkMin:3, chunkMax:8, dailyCap:30 };
+let pendingImages = []; // [{name, type, dataUrl}]
+let sendState = { running:false, stop:false };
+const msgCache = new Map(); // (fu:)?nama -> pesan yang sudah di-generate
+const wait = ms => new Promise(r => setTimeout(r, ms));
 const $ = id => document.getElementById(id);
-const leadIndex = new WeakMap(); // lead object -> original index (kills O(n) indexOf)
 
-// Pesan default untuk follow-up WhatsApp — bisa diedit sesuai kebutuhan
+const STATUS_LABEL = { baru:'Baru', terkirim:'Terkirim', dibalas:'Dibalas', invalid:'Invalid', skip:'Skip' };
+const STATUS_CLASS = { baru:'st-new', terkirim:'st-sent', dibalas:'st-replied', invalid:'st-invalid', skip:'st-skip' };
+
 const WA_TEMPLATE = (name) => `Halo ${name || 'admin'}, saya ingin menanyakan produk/layanan Anda. Terima kasih.`;
 
-function indexLeads() {
-  leadIndex.clear();
-  leads.forEach((l, i) => leadIndex.set(l, i));
+const TONES = {
+  ramah: 'Bahasa santai namun sopan, hangat, dan akrab.',
+  formal: 'Bahasa formal dan sopan, sapa dengan Bapak/Ibu.',
+  profesional: 'Bahasa profesional, jelas, langsung ke poin.',
+  persuasif: 'Bahasa persuasif, tonjolkan manfaat jasa/produk, dorong untuk mencoba.',
+  singkat: 'Pesan singkat dan padat, langsung ke inti, maksimal 80 kata.'
+};
+
+// ─── Helpers ────────────────────────────────────────────────────────
+
+function esc(s) { return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function q(s){ if(!s) return ''; s=String(s); return (s.includes(',')||s.includes('"')) ? `"${s.replace(/"/g,'""')}"` : s; }
+function date(){ return new Date().toISOString().split('T')[0]; }
+function download(c,n,m){
+  const url = URL.createObjectURL(new Blob([c],{type:m}));
+  chrome.downloads.download({ url, filename:n, saveAs:true });
+  setTimeout(() => URL.revokeObjectURL(url), 30000);
 }
-
-// ─── Phone normalization (Indonesia-first) ──────────────────────────
-
-function normalizePhone(p) {
-  if (!p) return '';
-  let d = String(p).replace(/[^\d+]/g, '');
-  if (d.startsWith('+')) d = d.slice(1);
-  if (d.startsWith('0')) d = '62' + d.slice(1);          // 08xx… → 628xx…
-  else if (d.length >= 9 && d.length <= 12 && d.startsWith('8')) d = '62' + d; // 8xx… → 628xx…
-  if (d.length < 9 || d.length > 15) return '';
-  return d;
-}
-
-// ─── Init ──────────────────────────────────────────────────────────
-
-async function init() {
-  const tab = await getTab();
-  const isMaps = tab.url?.includes('google.com/maps');
-  
-  $('not-maps').classList.toggle('visible', !isMaps);
-  document.querySelector('.controls').style.display = isMaps ? '' : 'none';
-  $('results-container').style.display = isMaps ? '' : 'none';
-  document.querySelector('.footer').style.display = isMaps ? '' : 'none';
-  
-  // Load saved leads
-  const saved = await chrome.storage.local.get('mapsLeads');
-  if (saved.mapsLeads?.leads?.length) {
-    leads = saved.mapsLeads.leads;
-    filteredLeads = [...leads];
-    indexLeads();
-    render();
-  }
-  
-  await loadWASettings();
-}
-
-async function getTab() {
-  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-  return tab;
-}
-
-// ─── UI Helpers ────────────────────────────────────────────────────
 
 function toast(msg) {
   const el = $('toast');
@@ -68,124 +43,117 @@ function toast(msg) {
   setTimeout(() => el.classList.remove('show'), 2500);
 }
 
-function updateStats() {
-  const t = leads.length;
-  $('stat-total').textContent = t;
-  $('stat-phone').textContent = leads.filter(l => l.phone).length;
-  $('stat-website').textContent = leads.filter(l => l.website).length;
-  $('stat-email').textContent = leads.filter(l => l.email).length;
-  $('lead-count-text').textContent = t;
-  
-  $('stats').classList.toggle('visible', t > 0);
-  $('filter-bar').classList.toggle('visible', t > 0);
-  
-  const has = t > 0;
-  $('btn-save').disabled = !has;
-  $('btn-csv').disabled = !has;
-  $('btn-sheets').disabled = !has;
-  $('btn-wa').disabled = !has;
-}
-
 function showProgress(text, percent, eta) {
   $('progress').classList.add('visible');
   $('progress-text').textContent = text;
   $('progress-fill').style.width = `${percent || 0}%`;
   $('progress-eta').textContent = eta || '';
 }
+function hideProgress() { $('progress').classList.remove('visible'); }
 
-function hideProgress() {
-  $('progress').classList.remove('visible');
+async function getTab() {
+  const [tab] = await chrome.tabs.query({ active:true, currentWindow:true });
+  return tab;
 }
 
-function setRunning(running) {
-  const btn = $('btn-scrape');
-  const text = $('btn-scrape-text');
-  
-  if (running) {
-    btn.classList.add('running');
-    btn.disabled = true;
-    text.textContent = 'Scraping...';
-    btn.querySelector('svg').innerHTML = '<circle cx="12" cy="12" r="10"/><path d="m15 9-6 6"/><path d="m9 9 6 6"/>';
-  } else {
-    btn.classList.remove('running');
-    btn.disabled = false;
-    text.textContent = 'Scrape Listings';
-    btn.querySelector('svg').innerHTML = '<circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>';
+// ─── Persistence ────────────────────────────────────────────────────
+
+async function saveLeads() {
+  await chrome.storage.local.set({ mapsLeads: { leads, savedAt: new Date().toISOString() } });
+}
+
+async function loadLeads() {
+  const s = await chrome.storage.local.get('mapsLeads');
+  if (s.mapsLeads?.leads?.length) {
+    leads = s.mapsLeads.leads.map(normalizeLead);
+    filteredLeads = [...leads];
+    renderLeads();
   }
 }
 
-// ─── Render Table ──────────────────────────────────────────────────
-
-function applyFilters() {
-  const search = $('search-input').value.toLowerCase();
-  const minRating = parseFloat($('filter-rating').value) || 0;
-  const hasFilter = $('filter-has').value;
-  
-  filteredLeads = leads.filter(l => {
-    if (search) {
-      const text = `${l.name} ${l.category} ${l.address} ${l.phone} ${l.website} ${l.email}`.toLowerCase();
-      if (!text.includes(search)) return false;
-    }
-    if (minRating && (l.rating || 0) < minRating) return false;
-    if (hasFilter === 'phone' && !l.phone) return false;
-    if (hasFilter === 'website' && !l.website) return false;
-    if (hasFilter === 'email' && !l.email) return false;
-    return true;
-  });
-  
-  filteredLeads.sort((a, b) => {
-    let va = a[sortField] ?? '';
-    let vb = b[sortField] ?? '';
-    if (sortField === 'index') { va = leadIndex.get(a) ?? 0; vb = leadIndex.get(b) ?? 0; }
-    else if (['rating'].includes(sortField)) { va = va || 0; vb = vb || 0; }
-    else { va = String(va).toLowerCase(); vb = String(vb).toLowerCase(); }
-    return va < vb ? (sortDir === 'asc' ? -1 : 1) : va > vb ? (sortDir === 'asc' ? 1 : -1) : 0;
-  });
-  
-  render();
+function normalizeLead(l) {
+  return {
+    ...l,
+    id: l.id || (l.url || l.name || Math.random().toString(36).slice(2)),
+    status: l.status || 'baru',
+    sentAt: l.sentAt || null,
+    lastError: l.lastError || ''
+  };
 }
 
-function render() {
-  const tbody = $('results-body');
-  const wrap = $('table-wrap');
-  const empty = $('empty-state');
-  
-  if (!filteredLeads.length && !leads.length) {
-    wrap.style.display = 'none';
-    empty.style.display = 'block';
+// ─── Tabs ───────────────────────────────────────────────────────────
+
+function switchTab(name) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === name));
+  ['tab-leads','tab-kirim','tab-pengaturan'].forEach(id => $(id).classList.toggle('active', id === 'tab-' + name));
+  if (name === 'kirim') updateTargetInfo();
+}
+
+// ─── Phone normalization (Indonesia-first) ──────────────────────────
+
+function normalizePhone(p) {
+  if (!p) return '';
+  let d = String(p).replace(/[^\d+]/g, '');
+  if (d.startsWith('+')) d = d.slice(1);
+  if (d.startsWith('0')) d = '62' + d.slice(1);
+  else if (d.length >= 9 && d.length <= 12 && d.startsWith('8')) d = '62' + d;
+  if (d.length < 9 || d.length > 15) return '';
+  return d;
+}
+
+// ─── Scrape (Kumpulkan) ─────────────────────────────────────────────
+
+function setScraping(on) {
+  $('btn-scrape').disabled = on;
+  $('btn-scrape-text').textContent = on ? 'Mengumpulkan…' : 'Scrape dari Google Maps';
+}
+
+async function scrape() {
+  const tab = await getTab();
+  if (!tab.url?.includes('google.com/maps')) {
+    toast('Buka Google Maps dulu, lalu klik Scrape');
     return;
   }
+  const options = {
+    scroll: true, details: true, dedup: true,
+    emails: $('opt-emails').checked,
+    maxListings: parseInt($('max-listings').value, 10) || 0
+  };
+  setScraping(true);
+  showProgress('Mengumpulkan lead dari Google Maps…', 0);
   
-  empty.style.display = 'none';
-  wrap.style.display = '';
-  
-  tbody.innerHTML = filteredLeads.map((l) => {
-    const i = (leadIndex.get(l) ?? 0) + 1;
-    const wa = normalizePhone(l.phone);
-    return `<tr>
-      <td>${i}</td>
-      <td class="cell-name" title="${esc(l.name)}">${esc(l.name || '-')}</td>
-      <td title="${esc(l.category)}">${esc(l.category || '-')}</td>
-      <td class="cell-rating">${l.rating ? `★${l.rating}` : '-'}</td>
-      <td class="cell-phone">${l.phone ? `<a href="tel:${l.phone}">${esc(l.phone)}</a>` : '-'}</td>
-      <td class="cell-wa">${wa ? `<a class="wa-link" href="https://wa.me/${wa}?text=${encodeURIComponent(WA_TEMPLATE(l.name))}" target="_blank" rel="noopener" title="Chat WhatsApp">WA</a>` : '-'}</td>
-      <td class="cell-email">${l.email ? `<a href="mailto:${l.email}">${esc(l.email.split('@')[1] || l.email)}</a>` : '-'}</td>
-    </tr>`;
-  }).join('');
-  
-  updateStats();
+  chrome.tabs.sendMessage(tab.id, { type:'SCRAPE', options }, async (response) => {
+    setScraping(false);
+    hideProgress();
+    if (chrome.runtime.lastError) { toast('Refresh halaman Google Maps dulu'); return; }
+    if (response?.error) { toast(response.error); return; }
+    if (response?.cancelled) { toast('Dibatalkan'); return; }
+    
+    leads = (response.leads || []).map(normalizeLead);
+    filteredLeads = [...leads];
+    renderLeads();
+    saveLeads();
+    toast(`${leads.length} lead masuk database${response.elapsed ? ` (${response.elapsed}s)` : ''}`);
+    
+    // Email opsional — dijalankan di sini (extension page bebas CORS)
+    if (response.emailsRequested && leads.some(l => l.website)) {
+      showProgress('Mencari email…', 0);
+      const found = await extractEmailsFromWebsites(leads, (d,t,f) => showProgress(`Email: ${f} ditemukan (${d}/${t})`, Math.round(d/t*100)));
+      hideProgress();
+      renderLeads();
+      saveLeads();
+      toast(`${found} email ditemukan`);
+    }
+  });
 }
 
-function esc(s) { return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+// ─── Email extraction (CORS-free di extension page) ─────────────────
 
-// ─── Email extraction (runs HERE — extension pages are not CORS-bound) ──
-
-const emailCache = new Map(); // origin -> emails[]
+const emailCache = new Map();
 
 async function extractEmailsFromWebsites(leads, onProgress) {
   const todo = leads.filter(l => l.website && !l.email);
   if (!todo.length) return 0;
-  
   let next = 0, done = 0, found = 0;
   
   const parseHtml = (html, set) => {
@@ -202,16 +170,14 @@ async function extractEmailsFromWebsites(leads, onProgress) {
       set.add(l);
     }
   };
-  
   const fetchPage = async (p, set) => {
     try {
-      const r = await fetch(p, { mode: 'cors', credentials: 'omit', signal: AbortSignal.timeout(3500) });
+      const r = await fetch(p, { mode:'cors', credentials:'omit', signal: AbortSignal.timeout(3500) });
       if (!r.ok) return false;
       parseHtml(await r.text(), set);
       return true;
     } catch (e) { return false; }
   };
-  
   const worker = async () => {
     while (true) {
       const i = next++;
@@ -220,13 +186,10 @@ async function extractEmailsFromWebsites(leads, onProgress) {
       const emails = new Set();
       try {
         const origin = new URL(lead.website).origin;
-        if (emailCache.has(origin)) {
-          for (const e of emailCache.get(origin)) emails.add(e);
-        } else {
+        if (emailCache.has(origin)) { for (const e of emailCache.get(origin)) emails.add(e); }
+        else {
           await fetchPage(lead.website, emails);
-          if (emails.size === 0) {
-            await Promise.all(['/contact', '/about', '/kontak', '/hubungi'].map(p => fetchPage(origin + p, emails)));
-          }
+          if (emails.size === 0) await Promise.all(['/contact','/about','/kontak','/hubungi'].map(p => fetchPage(origin + p, emails)));
           emailCache.set(origin, [...emails]);
         }
       } catch (e) {}
@@ -235,97 +198,167 @@ async function extractEmailsFromWebsites(leads, onProgress) {
       if (onProgress) onProgress(done, todo.length, found);
     }
   };
-  
   await Promise.all(Array.from({ length: Math.min(6, todo.length) }, worker));
   return found;
 }
 
-// ─── WhatsApp follow-up queue (anti-ban: shuffle + random delay) ─────
-// Mode auto   : navigasi tab WhatsApp Web, ketik & kirim via whatsapp.js
-// Mode manual : buka chat wa.me saja (tanpa kirim otomatis)
+// ─── Leads tab: saring & tampil ─────────────────────────────────────
 
-let waRunning = false;
-let waStop = false;
-let waSettings = {
-  apiKey: '', sender: '', model: 'deepseek-v4-flash',
-  offer: '', link: '', tone: 'ramah',
-  chunkMin: 3, chunkMax: 8, dailyCap: 30, mode: 'auto'
-};
-const msgCache = new Map(); // nama lead -> pesan yang sudah di-generate
-let pendingImages = []; // [{name, type, dataUrl}] gambar untuk dikirim
-
-const wait = ms => new Promise(r => setTimeout(r, ms));
-
-async function loadWASettings() {
-  const s = await chrome.storage.local.get('waSettings');
-  if (s.waSettings) waSettings = { ...waSettings, ...s.waSettings };
-  $('wa-api-key').value = waSettings.apiKey;
-  $('wa-sender').value = waSettings.sender;
-  $('wa-model').value = waSettings.model;
-  $('wa-offer').value = waSettings.offer;
-  $('wa-link').value = waSettings.link || '';
-  $('wa-tone').value = waSettings.tone;
-  $('wa-chunk-min').value = waSettings.chunkMin;
-  $('wa-chunk-max').value = waSettings.chunkMax;
-  $('wa-cap').value = waSettings.dailyCap;
-  $('wa-mode').value = waSettings.mode;
+function applyFilters() {
+  const q = $('search-input').value.toLowerCase();
+  const st = $('filter-status').value;
+  filteredLeads = leads.filter(l => {
+    if (q && !`${l.name} ${l.category} ${l.address} ${l.phone} ${l.email}`.toLowerCase().includes(q)) return false;
+    if (st && (l.status || 'baru') !== st) return false;
+    return true;
+  });
+  renderLeads();
 }
 
-async function saveWASettings() {
+function renderLeads() {
+  const tbody = $('results-body');
+  const wrap = $('table-wrap');
+  const empty = $('empty-state');
+  
+  if (!leads.length) {
+    wrap.style.display = 'none';
+    empty.style.display = 'block';
+    updateStats();
+    return;
+  }
+  empty.style.display = 'none';
+  wrap.style.display = '';
+  
+  const idx = new Map(leads.map((l, i) => [l, i]));
+  tbody.innerHTML = filteredLeads.map(l => {
+    const st = l.status || 'baru';
+    const wa = normalizePhone(l.phone);
+    return `<tr>
+      <td>${(idx.get(l) ?? 0) + 1}</td>
+      <td class="cell-name" title="${esc(l.name)}">${esc(l.name || '-')}</td>
+      <td title="${esc(l.category)}">${esc(l.category || '-')}</td>
+      <td class="cell-rating">${l.rating ? `★${l.rating}` : '-'}</td>
+      <td class="cell-phone">${l.phone ? `<a href="tel:${l.phone}">${esc(l.phone)}</a>` : '-'}</td>
+      <td class="cell-wa">${wa ? `<a class="wa-link" href="https://wa.me/${wa}?text=${encodeURIComponent(WA_TEMPLATE(l.name))}" target="_blank" rel="noopener" title="Buka chat manual">WA</a>` : '-'}</td>
+      <td><select class="status-sel ${STATUS_CLASS[st]}" data-id="${esc(l.id)}" onchange="setStatus(this.dataset.id, this.value)">
+        ${Object.keys(STATUS_LABEL).map(k => `<option value="${k}" ${k === st ? 'selected' : ''}>${STATUS_LABEL[k]}</option>`).join('')}
+      </select></td>
+      <td class="cell-email">${l.email ? `<a href="mailto:${l.email}">${esc(l.email.split('@')[1] || l.email)}</a>` : '-'}</td>
+    </tr>`;
+  }).join('');
+  updateStats();
+}
+
+function setStatus(id, status) {
+  const l = leads.find(x => x.id === id);
+  if (!l) return;
+  l.status = status;
+  if (status === 'terkirim' && !l.sentAt) l.sentAt = new Date().toISOString();
+  applyFilters();
+  saveLeads();
+}
+
+function updateStats() {
+  const count = st => leads.filter(l => (l.status || 'baru') === st).length;
+  $('stat-total').textContent = leads.length;
+  $('stat-baru').textContent = count('baru');
+  $('stat-terkirim').textContent = count('terkirim');
+  $('stat-dibalas').textContent = count('dibalas');
+  $('lead-count-text').textContent = leads.length;
+  $('btn-csv').disabled = !leads.length;
+  $('btn-clear-invalid').disabled = !count('invalid');
+}
+
+function exportCSV() {
+  if (!leads.length) return;
+  const h = ['No','Name','Category','Rating','Address','Phone','WhatsApp','Website','Email','URL','Status','SentAt'];
+  const rows = leads.map((l,i) => [
+    i+1, q(l.name), q(l.category), l.rating || '', q(l.address), q(l.phone),
+    q(normalizePhone(l.phone)), q(l.website), q(l.email), q(l.url),
+    q(STATUS_LABEL[l.status] || 'Baru'), q(l.sentAt || '')
+  ]);
+  download('\ufeff' + [h.join(',')].concat(rows.map(r => r.join(','))).join('\n'), `leads_${date()}.csv`, 'text/csv');
+  toast('CSV diekspor');
+}
+
+// ─── Kirim tab: target & pesan ──────────────────────────────────────
+
+function targetLeads() {
+  const followUp = $('target-followup').checked;
+  if (followUp) {
+    const days = parseInt($('followup-days').value, 10) || 3;
+    const cutoff = Date.now() - days * 86400000;
+    return leads.filter(l => (l.status || 'baru') === 'terkirim' && l.sentAt && new Date(l.sentAt).getTime() <= cutoff);
+  }
+  return leads.filter(l => (l.status || 'baru') === 'baru');
+}
+
+function updateTargetInfo() {
+  const tg = targetLeads();
+  $('followup-row').style.display = $('target-followup').checked ? '' : 'none';
+  $('target-count').innerHTML = `<b>${tg.length}</b> target siap kirim`;
+  $('target-preview').textContent = tg.length ? 'Contoh: ' + tg.slice(0, 3).map(l => l.name).join(', ') + (tg.length > 3 ? ' …' : '') : 'Tidak ada target — pilih status lain atau ubah filter.';
+}
+
+async function saveSettings() {
   waSettings = {
-    apiKey: $('wa-api-key').value.trim(),
-    sender: $('wa-sender').value.trim(),
-    model: $('wa-model').value,
-    offer: $('wa-offer').value.trim(),
-    link: $('wa-link').value.trim(),
-    tone: $('wa-tone').value,
-    chunkMin: Math.max(1, parseInt($('wa-chunk-min').value, 10) || 3),
-    chunkMax: Math.max(2, parseInt($('wa-chunk-max').value, 10) || 8),
-    dailyCap: Math.max(1, parseInt($('wa-cap').value, 10) || 30),
-    mode: $('wa-mode').value
+    apiKey: $('set-api-key').value.trim(),
+    model: $('set-model').value,
+    chunkMin: Math.max(1, parseInt($('set-chunk-min').value, 10) || 3),
+    chunkMax: Math.max(2, parseInt($('set-chunk-max').value, 10) || 8),
+    dailyCap: Math.max(1, parseInt($('set-cap').value, 10) || 30),
+    sender: $('msg-sender').value.trim(),
+    offer: $('msg-offer').value.trim(),
+    link: $('msg-link').value.trim(),
+    tone: $('msg-tone').value
   };
   await chrome.storage.local.set({ waSettings });
 }
 
-// Batas harian (per tanggal, disimpan di chrome.storage)
-async function waCountToday() {
-  const today = new Date().toISOString().split('T')[0];
-  const d = await chrome.storage.local.get('waDaily');
-  return (d.waDaily && d.waDaily.date === today) ? d.waDaily.count : 0;
-}
-async function bumpWACount() {
-  const today = new Date().toISOString().split('T')[0];
-  const d = await chrome.storage.local.get('waDaily');
-  const count = (d.waDaily && d.waDaily.date === today) ? d.waDaily.count : 0;
-  await chrome.storage.local.set({ waDaily: { date: today, count: count + 1 } });
+async function loadSettings() {
+  const s = await chrome.storage.local.get('waSettings');
+  if (s.waSettings) waSettings = { ...waSettings, ...s.waSettings };
+  $('set-api-key').value = waSettings.apiKey;
+  $('set-model').value = waSettings.model;
+  $('set-chunk-min').value = waSettings.chunkMin;
+  $('set-chunk-max').value = waSettings.chunkMax;
+  $('set-cap').value = waSettings.dailyCap;
+  $('msg-sender').value = waSettings.sender;
+  $('msg-offer').value = waSettings.offer;
+  $('msg-link').value = waSettings.link || '';
+  $('msg-tone').value = waSettings.tone;
 }
 
-// Gaya bahasa yang bisa dipilih user
-const TONES = {
-  ramah: 'Bahasa santai namun sopan, hangat, dan akrab.',
-  formal: 'Bahasa formal dan sopan, sapa dengan Bapak/Ibu.',
-  profesional: 'Bahasa profesional, jelas, langsung ke poin.',
-  persuasif: 'Bahasa persuasif, tonjolkan manfaat jasa/produk, dorong untuk mencoba.',
-  singkat: 'Pesan singkat dan padat, langsung ke inti, maksimal 80 kata.'
-};
+// Pesan: manual (dengan {nama}) atau AI per lead
+async function getMessage(lead, followUp = false) {
+  const manual = $('msg-manual').value.trim();
+  if (manual) return manual.replace(/\{nama\}/gi, lead.name || '');
+  const key = (followUp ? 'fu:' : '') + (lead.name || lead.url);
+  if (msgCache.has(key)) return msgCache.get(key);
+  let msg = await generateMessage(lead, followUp);
+  if (!msg) msg = WA_TEMPLATE(lead.name);
+  msgCache.set(key, msg);
+  return msg;
+}
 
-// Pesan personal via DeepSeek (deepseek-v4-flash, non-thinking)
-async function generateMessage(lead) {
+async function generateMessage(lead, followUp = false) {
   if (!waSettings.apiKey) return null;
   try {
     const sender = waSettings.sender || '[NAMA ANDA]';
     const tone = TONES[waSettings.tone] || TONES.ramah;
     const offer = waSettings.offer || 'menawarkan kerja sama / produk Anda';
     const link = waSettings.link ? `\nLink web/portfolio pengirim: ${waSettings.link}` : '';
-    const system = 'Kamu adalah asisten pemasaran yang menulis pesan WhatsApp singkat, sopan, natural, dalam Bahasa Indonesia. Tanpa markdown, tanpa emoji berlebihan, tanpa judul, tanpa bullet. Maksimal 200 kata.';
-    const user = `Tulis pesan follow-up WhatsApp untuk pemilik bisnis ini.\nNama bisnis: ${lead.name}\nKategori: ${lead.category || '-'}\nAlamat: ${lead.address || '-'}\nPengirim: ${sender}\nJasa/produk yang ditawarkan: ${offer}${link}\nGaya bahasa: ${tone}\nStruktur: sapa pemilik ${lead.name}, perkenalkan diri singkat, sampaikan penawaran beserta manfaatnya, ajak merespons, akhiri dengan terima kasih.`;
+    const system = 'Kamu adalah asisten pemasaran yang menulis pesan WhatsApp singkat, sopan, natural, dalam Bahasa Indonesia. Tanpa markdown, tanpa emoji berlebihan, tanpa judul, tanpa bullet.';
+    const user = followUp
+      ? `Ini pesan TINDAK LANJUT (follow-up). Sebelumnya kami sudah menghubungi pemilik ${lead.name} namun belum ada balasan. Tulis pesan singkat, sopan, tidak memaksa: ingatkan kembali penawaran berikut. Penawaran: ${offer}${link}. Pengirim: ${sender}. Gaya: ${tone}. Maksimal 120 kata, akhiri dengan terima kasih.`
+      : `Tulis pesan WhatsApp untuk pemilik bisnis ini.\nNama bisnis: ${lead.name}\nKategori: ${lead.category || '-'}\nAlamat: ${lead.address || '-'}\nPengirim: ${sender}\nJasa/produk yang ditawarkan: ${offer}${link}\nGaya bahasa: ${tone}\nStruktur: sapa pemilik ${lead.name}, perkenalkan diri singkat, sampaikan penawaran beserta manfaatnya, ajak merespons, akhiri dengan terima kasih. Maksimal 200 kata.`;
     const r = await fetch('https://api.deepseek.com/chat/completions', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + waSettings.apiKey },
+      headers: { 'Content-Type':'application/json', 'Authorization':'Bearer ' + waSettings.apiKey },
       body: JSON.stringify({
         model: waSettings.model,
-        messages: [{ role: 'system', content: system }, { role: 'user', content: user }],
-        thinking: { type: 'disabled' },
+        messages: [{ role:'system', content: system }, { role:'user', content: user }],
+        thinking: { type:'disabled' },
         temperature: 0.8,
         max_tokens: 500
       })
@@ -333,8 +366,7 @@ async function generateMessage(lead) {
     if (!r.ok) throw new Error('DeepSeek HTTP ' + r.status);
     const j = await r.json();
     const text = (j.choices?.[0]?.message?.content || '').trim()
-      .replace(/[*_#`>]/g, '')
-      .replace(/\s+/g, ' ');
+      .replace(/[*_#`>]/g, '').replace(/\s+/g, ' ');
     return text || null;
   } catch (e) {
     console.warn('[WA] LLM gagal, pakai template:', e);
@@ -342,7 +374,7 @@ async function generateMessage(lead) {
   }
 }
 
-// Pecah teks panjang jadi chunk seukuran manusia (potong di akhir kalimat)
+// Split pesan panjang jadi chunk seukuran manusia
 function splitMessage(text, min = 150, max = 300) {
   const t = (text || '').trim();
   if (!t) return [];
@@ -358,7 +390,20 @@ function splitMessage(text, min = 150, max = 300) {
   return chunks;
 }
 
-// Manajemen tab WhatsApp Web
+async function previewMessages() {
+  const tg = targetLeads();
+  if (!tg.length) { toast('Tidak ada target sesuai pilihan'); return; }
+  const samples = await Promise.all(tg.slice(0, 2).map(async l => ({
+    name: l.name, text: await getMessage(l, (l.status || 'baru') === 'terkirim')
+  })));
+  $('preview-box').innerHTML = samples.map(s =>
+    `<div class="pv-item"><b>${esc(s.name)}</b><div class="pv-text">${esc(s.text)}</div></div>`
+  ).join('');
+  toast('Contoh pesan untuk 2 target pertama');
+}
+
+// ─── Kirim: WhatsApp Web ────────────────────────────────────────────
+
 async function getWATab() {
   const tabs = await chrome.tabs.query({ url: 'https://web.whatsapp.com/*' });
   if (tabs.length) return tabs[0];
@@ -367,277 +412,168 @@ async function getWATab() {
 
 async function sendToWATab(tabId, msg, attempts = 20) {
   for (let i = 0; i < attempts; i++) {
-    try {
-      return await chrome.tabs.sendMessage(tabId, msg);
-    } catch (e) {
-      await wait(1000); // content script mungkin belum siap setelah reload
-    }
+    try { return await chrome.tabs.sendMessage(tabId, msg); }
+    catch (e) { await wait(1000); }
   }
-  return { ok: false, error: 'Tab WA tidak merespons (content script belum siap)' };
+  return { ok: false, error: 'Tab WA tidak merespons' };
 }
 
-async function followUpWA() {
-  if (waRunning) return;
-  await saveWASettings();
+async function waCountToday() {
+  const today = new Date().toISOString().split('T')[0];
+  const d = await chrome.storage.local.get('waDaily');
+  return (d.waDaily && d.waDaily.date === today) ? d.waDaily.count : 0;
+}
+async function bumpWACount() {
+  const today = new Date().toISOString().split('T')[0];
+  const d = await chrome.storage.local.get('waDaily');
+  const count = (d.waDaily && d.waDaily.date === today) ? d.waDaily.count : 0;
+  await chrome.storage.local.set({ waDaily: { date: today, count: count + 1 } });
+}
+
+async function sendWA() {
+  if (sendState.running) return;
+  await saveSettings();
   
-  const items = leads.filter(l => normalizePhone(l.phone));
-  if (!items.length) { toast('Tidak ada nomor HP yang valid'); return; }
+  const tg = targetLeads();
+  if (!tg.length) { toast('Tidak ada target — cek pilihan target & status lead'); return; }
   
   const minS = Math.max(5, parseInt($('wa-min').value, 10) || 45);
   const maxS = Math.max(minS + 5, parseInt($('wa-max').value, 10) || 120);
   
   let used = await waCountToday();
-  if (used >= waSettings.dailyCap) { toast(`Batas harian tercapai (${waSettings.dailyCap}). Reset besok.`); return; }
+  if (used >= waSettings.dailyCap) { toast(`Batas harian tercapai (${waSettings.dailyCap}). Coba besok.`); return; }
+  const queue = tg.slice(0, Math.max(0, waSettings.dailyCap - used)).sort(() => Math.random() - 0.5);
   
-  // Shuffle urutan supaya polanya tidak robotik
-  const queue = [...items].sort(() => Math.random() - 0.5);
-  queue.length = Math.min(queue.length, waSettings.dailyCap - used);
+  // Cek login WhatsApp Web
+  const waTab = await getWATab();
+  await wait(2500);
+  const ping = await sendToWATab(waTab.id, { type: 'WA_PING' }, 30);
+  if (!ping?.loggedIn) {
+    $('wa-login-status').textContent = 'Belum login — buka tab WA & scan QR';
+    toast('Login WhatsApp Web dulu (tab Pengaturan → Login WA Web)');
+    return;
+  }
+  $('wa-login-status').textContent = '✓ Sudah login';
   
-  waRunning = true;
-  waStop = false;
-  $('btn-wa').disabled = true;
-  $('btn-wa-stop').disabled = false;
-  let sentCnt = 0, failCnt = 0;
-  const report = () => `Terkirim ${sentCnt} · Gagal ${failCnt} · Total ${queue.length}`;
+  sendState.running = true;
+  sendState.stop = false;
+  $('btn-send').disabled = true;
+  $('btn-send-stop').disabled = false;
+  $('btn-send').classList.add('running');
+  $('btn-send-text').textContent = 'Mengirim…';
+  $('send-report').textContent = '';
   
+  let sent = 0, fail = 0;
   try {
-    if (waSettings.mode === 'auto') {
-      // ─── Auto: ketik & kirim di WhatsApp Web ───
-      const waTab = await getWATab();
-      await wait(2500);
-      const ping = await sendToWATab(waTab.id, { type: 'WA_PING' }, 30);
-      if (!ping?.loggedIn) {
-        $('wa-status').textContent = 'Belum login — scan QR di tab WA';
-        toast('Buka tab WhatsApp Web & scan QR dulu, lalu ulangi');
-        return;
+    for (let i = 0; i < queue.length; i++) {
+      if (sendState.stop) break;
+      const l = queue[i];
+      const num = normalizePhone(l.phone);
+      if (!num) {
+        l.status = 'invalid'; l.lastError = 'tidak ada nomor';
+        fail++;
+        continue;
       }
-      $('wa-status').textContent = '✓ Sudah login';
+      const followUp = (l.status || 'baru') === 'terkirim';
+      const msg = await getMessage(l, followUp);
+      const chunks = splitMessage(msg);
+      if (!chunks.length) continue;
       
-      $('wa-report').textContent = '';
+      const withImg = pendingImages.length > 0;
+      const url = withImg
+        ? `https://web.whatsapp.com/send?phone=${num}`
+        : `https://web.whatsapp.com/send?phone=${num}&text=${encodeURIComponent(chunks[0])}`;
       
-      for (let i = 0; i < queue.length; i++) {
-        if (waStop) break;
-        const l = queue[i];
-        const num = normalizePhone(l.phone);
-        
-        // Generate (atau pakai cache) pesan personal
-        let msg = msgCache.get(l.name);
-        if (!msg) { msg = await generateMessage(l); if (msg) msgCache.set(l.name, msg); }
-        const chunks = splitMessage(msg || WA_TEMPLATE(l.name));
-        if (!chunks.length) continue;
-        
-        const withImg = pendingImages.length > 0;
-        const url = withImg
-          ? `https://web.whatsapp.com/send?phone=${num}`
-          : `https://web.whatsapp.com/send?phone=${num}&text=${encodeURIComponent(chunks[0])}`;
-        showProgress(`WA: ${l.name} (${i + 1}/${queue.length}) — ${report()}`, Math.round((i + 1) / queue.length * 100));
-        
-        await chrome.tabs.update(waTab.id, { url, active: false });
-        await wait(4500); // reload halaman + boot aplikasi
-        
-        const res = await sendToWATab(waTab.id, {
-          type: 'WA_SEND',
-          chunks: chunks.slice(1),
-          prefill: chunks[0],
-          images: withImg ? pendingImages : []
-        });
-        if (res?.ok && res.sent > 0) { sentCnt++; await bumpWACount(); }
-        else { failCnt++; console.warn('[WA] gagal untuk', l.name, res?.error || 'tidak ada respon'); }
-        
-        if (i < queue.length - 1 && !waStop) {
-          const delay = Math.round((minS + Math.random() * (maxS - minS)) * 1000);
-          showProgress(`WA: ${i + 1}/${queue.length} selesai — ${report()}. Berikutnya (${queue[i + 1].name}) dalam ~${Math.round(delay / 1000)}s`, Math.round((i + 1) / queue.length * 100));
-          await wait(delay);
-        } else {
-          showProgress(`WA: selesai ${i + 1}/${queue.length} — ${report()}`, 100);
-        }
+      showProgress(`Kirim ke ${l.name} (${i + 1}/${queue.length}) · Terkirim ${sent} · Gagal ${fail}`, Math.round((i + 1) / queue.length * 100));
+      await chrome.tabs.update(waTab.id, { url, active: false });
+      await wait(4500); // reload + boot
+      
+      const res = await sendToWATab(waTab.id, {
+        type: 'WA_SEND', chunks: chunks.slice(1), prefill: chunks[0], images: withImg ? pendingImages : []
+      });
+      
+      if (res?.ok && res.sent > 0) {
+        sent++;
+        l.status = 'terkirim';
+        l.sentAt = new Date().toISOString();
+        l.lastError = '';
+        await bumpWACount();
+      } else {
+        fail++;
+        l.status = 'invalid';
+        l.lastError = res?.error || 'gagal kirim';
+        console.warn('[WA] gagal:', l.name, l.lastError);
       }
-    } else {
-      // ─── Manual: buka chat wa.me saja ───
-      for (let i = 0; i < queue.length; i++) {
-        if (waStop) break;
-        const l = queue[i];
-        const url = `https://wa.me/${normalizePhone(l.phone)}?text=${encodeURIComponent(WA_TEMPLATE(l.name))}`;
-        chrome.tabs.create({ url, active: i === 0 });
-        const pct = Math.round((i + 1) / queue.length * 100);
-        if (i < queue.length - 1) {
-          const delayMs = Math.round((minS + Math.random() * (maxS - minS)) * 1000);
-          showProgress(`WA: ${i + 1}/${queue.length} — chat ${l.name || ''} dibuka. Berikutnya dalam ~${Math.round(delayMs / 1000)}s`, pct);
-          await wait(delayMs);
-        } else {
-          showProgress(`WA: selesai ${i + 1}/${queue.length}`, 100);
-        }
+      $('send-report').textContent = `Terkirim ${sent} · Gagal ${fail} · Total ${queue.length}`;
+      saveLeads(); // crash-safe: status disimpan tiap lead
+      
+      if (i < queue.length - 1 && !sendState.stop) {
+        const d = Math.round((minS + Math.random() * (maxS - minS)) * 1000);
+        showProgress(`Jeda ~${Math.round(d / 1000)}s ke ${queue[i + 1].name} · Terkirim ${sent} · Gagal ${fail}`, Math.round((i + 1) / queue.length * 100));
+        await wait(d);
+      } else {
+        showProgress(`Selesai · Terkirim ${sent} · Gagal ${fail}`, 100);
       }
     }
   } finally {
-    waRunning = false;
-    $('btn-wa').disabled = false;
-    $('btn-wa-stop').disabled = true;
+    sendState.running = false;
+    $('btn-send').disabled = false;
+    $('btn-send-stop').disabled = true;
+    $('btn-send').classList.remove('running');
+    $('btn-send-text').textContent = 'Kirim';
     hideProgress();
-    if (waSettings.mode === 'auto') $('wa-report').textContent = report();
-    toast(waStop ? 'Follow up WA dihentikan' : `Selesai: ${queue.length} chat`);
-  }
-}
-
-function stopFollowUpWA() {
-  waStop = true;
-  $('btn-wa-stop').disabled = true;
-  toast('Menghentikan antrian WA…');
-}
-
-// ─── Scrape (unified flow) ─────────────────────────────────────────
-
-async function scrape() {
-  const tab = await getTab();
-  
-  const options = {
-    scroll: $('opt-scroll').checked,
-    details: $('opt-details').checked,
-    emails: $('opt-emails').checked,
-    dedup: $('opt-dedup').checked,
-    maxListings: parseInt($('max-listings').value) || 0
-  };
-  
-  setRunning(true);
-  showProgress('Starting...', 0);
-  
-  chrome.tabs.sendMessage(tab.id, { type: 'SCRAPE', options }, async (response) => {
-    setRunning(false);
-    hideProgress();
-    
-    if (chrome.runtime.lastError) {
-      toast('Refresh Google Maps page first');
-      return;
-    }
-    
-    if (response?.error) {
-      toast(response.error);
-      return;
-    }
-    
-    if (response?.cancelled) {
-      toast('Cancelled');
-      return;
-    }
-    
-    leads = response.leads || [];
-    filteredLeads = [...leads];
-    indexLeads();
-    render();
-    
-    toast(`${leads.length} leads scraped${response.elapsed ? ` in ${response.elapsed}s` : ''}`);
+    renderLeads();
     saveLeads();
-    
-    // Email extraction runs here (extension page fetch = CORS-free)
-    if (response.emailsRequested && leads.some(l => l.website)) {
-      showProgress('Mencari email…', 0);
-      const found = await extractEmailsFromWebsites(leads, (d, t, f) => {
-        showProgress(`Email: ${f} ditemukan (${d}/${t})`, Math.round(d / t * 100));
-      });
-      hideProgress();
-      render();
-      saveLeads();
-      toast(`${found} email ditemukan dari ${leads.filter(l => l.website).length} website`);
-    }
-  });
-}
-
-// ─── Save/Load ─────────────────────────────────────────────────────
-
-async function saveLeads() {
-  await chrome.storage.local.set({ mapsLeads: { leads, savedAt: new Date().toISOString() } });
-}
-
-async function loadLeads() {
-  const saved = await chrome.storage.local.get('mapsLeads');
-  if (saved.mapsLeads?.leads?.length) {
-    leads = saved.mapsLeads.leads;
-    filteredLeads = [...leads];
-    indexLeads();
-    render();
-    toast(`Loaded ${leads.length} leads`);
-  } else {
-    toast('No saved leads');
+    toast(sendState.stop ? `Dihentikan — ${sent} terkirim` : `Selesai: ${sent} terkirim, ${fail} gagal`);
   }
 }
 
-// ─── Export CSV ─────────────────────────────────────────────────────
+// ─── WhatsApp Web login helper ──────────────────────────────────────
 
-function exportCSV() {
-  if (!leads.length) return;
-  const h = ['No','Name','Category','Rating','Address','Phone','WhatsApp','Website','Email','URL'];
-  const rows = leads.map((l,i) => [i+1,q(l.name),q(l.category),l.rating||'',q(l.address),q(l.phone),q(normalizePhone(l.phone)),q(l.website),q(l.email),q(l.url)]);
-  download('\ufeff'+[h.join(',')].concat(rows.map(r=>r.join(','))).join('\n'), `leads_${date()}.csv`, 'text/csv');
-  toast('CSV exported');
-}
-
-// ─── Export to Google Sheets (clipboard → sheets.new) ───────────────
-
-function exportSheets() {
-  if (!leads.length) return;
-  const h = ['No','Name','Category','Rating','Address','Phone','WhatsApp','Website','Email','URL'];
-  const rows = leads.map((l,i) => [i+1, l.name||'', l.category||'', l.rating||'', l.address||'', l.phone||'', normalizePhone(l.phone)||'', l.website||'', l.email||'', l.url||'']);
-  const tsv = [h.join('\t')].concat(rows.map(r=>r.join('\t'))).join('\n');
-  
-  navigator.clipboard.writeText(tsv).then(() => {
-    toast('Copied! Paste in Google Sheets (Ctrl+V)');
-    chrome.tabs.create({ url: 'https://sheets.new' });
-  }).catch(() => {
-    // Fallback: create textarea for copy
-    const ta = document.createElement('textarea');
-    ta.value = tsv;
-    document.body.appendChild(ta);
-    ta.select();
-    document.execCommand('copy');
-    document.body.removeChild(ta);
-    toast('Copied! Paste in Google Sheets (Ctrl+V)');
-    chrome.tabs.create({ url: 'https://sheets.new' });
-  });
-}
-
-function q(s){if(!s)return '';s=String(s);return(s.includes(',')||s.includes('"'))?`"${s.replace(/"/g,'""')}"`:s;}
-function date(){return new Date().toISOString().split('T')[0];}
-function download(c,n,m){
-  const url = URL.createObjectURL(new Blob([c],{type:m}));
-  chrome.downloads.download({url, filename:n, saveAs:true});
-  // Revoke the object URL after the download had time to start (memory leak fix)
-  setTimeout(() => URL.revokeObjectURL(url), 30000);
-}
-
-// ─── Events ────────────────────────────────────────────────────────
-
-$('btn-scrape').addEventListener('click', () => {
-  if ($('btn-scrape').classList.contains('running')) {
-    getTab().then(tab => chrome.tabs.sendMessage(tab.id, { type: 'CANCEL' }));
-    setRunning(false);
-    hideProgress();
-    toast('Cancelled');
-  } else {
-    scrape();
-  }
-});
-
-$('btn-save').addEventListener('click', () => { saveLeads(); toast('Saved'); });
-$('btn-load').addEventListener('click', loadLeads);
-$('btn-csv').addEventListener('click', exportCSV);
-$('btn-sheets').addEventListener('click', exportSheets);
-$('btn-open-maps').addEventListener('click', () => chrome.tabs.create({ url: 'https://www.google.com/maps' }));
-
-$('btn-wa').addEventListener('click', followUpWA);
-$('btn-wa-stop').addEventListener('click', stopFollowUpWA);
-
-// Buka WhatsApp Web untuk login (scan QR) + cek status
-$('btn-wa-login').addEventListener('click', async () => {
-  const tab = await getWATab(); // cari atau buka tab web.whatsapp.com
+async function waLoginCheck() {
+  const tab = await getWATab();
   await chrome.tabs.update(tab.id, { active: true });
-  const st = $('wa-status');
-  st.textContent = 'mengecek…';
+  $('wa-login-status').textContent = 'mengecek…';
   await wait(2500);
   const res = await sendToWATab(tab.id, { type: 'WA_PING' }, 15);
-  st.textContent = res?.loggedIn ? '✓ Sudah login' : 'Belum login — scan QR di tab WhatsApp Web';
+  $('wa-login-status').textContent = res?.loggedIn ? '✓ Sudah login' : 'Belum login — scan QR di tab WhatsApp Web';
+}
+
+// ─── Events ─────────────────────────────────────────────────────────
+
+document.querySelectorAll('.tab-btn').forEach(b => b.addEventListener('click', () => switchTab(b.dataset.tab)));
+
+$('btn-scrape').addEventListener('click', scrape);
+$('btn-csv').addEventListener('click', exportCSV);
+$('btn-open-maps').addEventListener('click', () => chrome.tabs.create({ url: 'https://www.google.com/maps' }));
+$('btn-clear-invalid').addEventListener('click', () => {
+  const n = leads.filter(l => l.status === 'invalid').length;
+  leads = leads.filter(l => l.status !== 'invalid');
+  filteredLeads = [...leads];
+  renderLeads();
+  saveLeads();
+  toast(`${n} lead invalid dihapus`);
 });
 
-// Pilih gambar untuk dikirim bersama pesan
+let searchTimer = null;
+$('search-input').addEventListener('input', () => {
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(applyFilters, 150);
+});
+$('filter-status').addEventListener('change', applyFilters);
+
+$('target-followup').addEventListener('change', updateTargetInfo);
+$('target-baru').addEventListener('change', updateTargetInfo);
+$('followup-days').addEventListener('change', updateTargetInfo);
+$('btn-preview').addEventListener('click', previewMessages);
+
+$('btn-send').addEventListener('click', sendWA);
+$('btn-send-stop').addEventListener('click', () => {
+  sendState.stop = true;
+  $('btn-send-stop').disabled = true;
+  toast('Menghentikan pengiriman…');
+});
+
 $('wa-image').addEventListener('change', async (e) => {
   const files = [...e.target.files];
   const imgs = [];
@@ -651,28 +587,12 @@ $('wa-image').addEventListener('change', async (e) => {
   }
   pendingImages = imgs;
   $('wa-image-label').textContent = imgs.length ? imgs.map(i => i.name).join(', ') : 'belum ada gambar';
-  e.target.value = ''; // izinkan pilih file yang sama lagi
+  e.target.value = '';
 });
 
-// Debounced search — rebuild the table at most every 150ms while typing
-let searchTimer = null;
-$('search-input').addEventListener('input', () => {
-  clearTimeout(searchTimer);
-  searchTimer = setTimeout(applyFilters, 150);
-});
-$('filter-rating').addEventListener('change', applyFilters);
-$('filter-has').addEventListener('change', applyFilters);
+$('btn-wa-login').addEventListener('click', waLoginCheck);
 
-document.querySelectorAll('.results-table th[data-sort]').forEach(th => {
-  th.addEventListener('click', () => {
-    const f = th.dataset.sort;
-    if (sortField === f) sortDir = sortDir === 'asc' ? 'desc' : 'asc';
-    else { sortField = f; sortDir = 'asc'; }
-    applyFilters();
-  });
-});
-
-// rAF-throttled progress rendering — coalesce bursts of PROGRESS messages
+// rAF-throttled progress
 let pendingProgress = null;
 let rafScheduled = false;
 chrome.runtime.onMessage.addListener((msg) => {
@@ -687,6 +607,11 @@ chrome.runtime.onMessage.addListener((msg) => {
   });
 });
 
-// ─── Start ─────────────────────────────────────────────────────────
+// ─── Init ───────────────────────────────────────────────────────────
 
-init();
+(async function init() {
+  await loadSettings();
+  await loadLeads();
+  switchTab('leads');
+  updateTargetInfo();
+})();

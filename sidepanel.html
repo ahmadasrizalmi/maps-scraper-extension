@@ -37,365 +37,173 @@
     
     .header { 
       background: white;
-      padding: 14px 16px;
+      padding: 12px 16px;
       border-bottom: 0.5px solid var(--gray-300);
-      position: sticky;
-      top: 0;
-      z-index: 10;
       display: flex;
       align-items: center;
       justify-content: space-between;
     }
-    .header-brand {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-    }
+    .header-brand { display: flex; align-items: center; gap: 10px; }
     .header-icon-box {
-      width: 34px;
-      height: 34px;
+      width: 32px; height: 32px;
       background: var(--green);
       border-radius: var(--radius-sm);
-      display: flex;
-      align-items: center;
-      justify-content: center;
+      display: flex; align-items: center; justify-content: center;
       color: white;
     }
-    .header-title { font-size: 16px; font-weight: 700; letter-spacing: -0.3px; }
+    .header-title { font-size: 15px; font-weight: 700; letter-spacing: -0.3px; }
     .header-badge {
-      display: inline-flex;
-      align-items: center;
-      gap: 4px;
+      display: inline-flex; align-items: center; gap: 4px;
       padding: 4px 10px;
-      background: var(--green-light);
-      color: var(--green);
-      border-radius: 20px;
-      font-size: 12px;
-      font-weight: 600;
+      background: var(--green-light); color: var(--green);
+      border-radius: 20px; font-size: 12px; font-weight: 600;
     }
     .header-badge svg { width: 13px; height: 13px; }
     
-    /* ─── Controls ───────────────────────────────────────────── */
+    /* ─── Tabs ───────────────────────────────────────────────── */
     
-    .controls {
-      background: white;
-      padding: 12px 16px;
-      border-bottom: 0.5px solid var(--gray-300);
-    }
-    
-    .scrape-btn {
-      width: 100%;
-      padding: 12px;
-      background: var(--green);
-      color: white;
-      border: none;
-      border-radius: var(--radius-sm);
-      font-size: 14px;
-      font-weight: 600;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 8px;
-      transition: all 0.15s;
-      margin-bottom: 10px;
-    }
-    .scrape-btn:hover { background: var(--green-dark); }
-    .scrape-btn:active { transform: scale(0.98); }
-    .scrape-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
-    .scrape-btn svg { width: 18px; height: 18px; }
-    
-    .scrape-btn.running {
-      background: var(--orange);
-    }
-    
-    .options {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 6px 12px;
-    }
-    .opt {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      font-size: 11px;
-      color: var(--gray-700);
-      cursor: pointer;
-      padding: 4px 0;
-    }
-    .opt input { accent-color: var(--green); cursor: pointer; }
-    
-    .limit-row {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      margin-top: 8px;
-      padding-top: 8px;
-      border-top: 0.5px solid var(--gray-200);
-    }
-    .limit-input {
-      width: 60px;
-      padding: 6px 8px;
-      background: var(--gray-100);
-      border: none;
-      border-radius: var(--radius-sm);
-      font-size: 13px;
-      font-weight: 600;
-      color: var(--gray-900);
-      text-align: center;
-    }
-    .limit-input:focus { outline: none; background: var(--gray-200); }
-    .limit-hint { font-size: 11px; color: var(--gray-500); }
-    
-    /* ─── WA / AI Settings ─────────────────────────── */
-    
-    .wa-settings {
-      margin-top: 8px;
-      padding-top: 8px;
-      border-top: 0.5px solid var(--gray-200);
-    }
-    .wa-settings summary {
-      cursor: pointer;
-      font-size: 11px;
-      color: var(--gray-500);
-      font-weight: 600;
-      user-select: none;
-    }
-    .wa-settings summary:hover { color: var(--gray-900); }
-    .settings-grid {
-      display: grid;
-      gap: 8px;
-      margin-top: 8px;
-    }
-    .settings-grid label {
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
-      font-size: 11px;
-      color: var(--gray-700);
-    }
-    .settings-grid input,
-    .settings-grid select,
-    .settings-grid textarea {
-      padding: 6px 8px;
-      background: var(--gray-100);
-      border: none;
-      border-radius: var(--radius-sm);
-      font-size: 12px;
-      color: var(--gray-900);
+    .tabs { display: flex; background: white; border-bottom: 0.5px solid var(--gray-300); }
+    .tab-btn {
+      flex: 1; padding: 10px 4px;
+      background: none; border: none;
+      font-size: 12px; font-weight: 600;
+      color: var(--gray-500); cursor: pointer;
+      border-bottom: 2px solid transparent;
       font-family: inherit;
     }
-    .settings-grid input:focus,
-    .settings-grid select:focus,
-    .settings-grid textarea:focus {
-      outline: none;
-      background: var(--gray-200);
-    }
-    .settings-grid .inline {
-      display: flex;
-      align-items: center;
-      gap: 4px;
-    }
-    .settings-grid input[type="file"] {
-      padding: 4px;
-      font-size: 11px;
-    }
+    .tab-btn:hover { color: var(--gray-900); }
+    .tab-btn.active { color: var(--green); border-bottom-color: var(--green); }
+    .tab-panel { display: none; padding: 12px 16px; }
+    .tab-panel.active { display: block; }
     
-    /* ─── Stats ──────────────────────────────────────────────── */
+    /* ─── Progress (global) ──────────────────────────────────── */
     
-    .stats {
-      display: none;
-      grid-template-columns: repeat(4, 1fr);
-      gap: 1px;
-      background: var(--gray-200);
-    }
-    .stats.visible { display: grid; }
-    .stat-card {
-      background: white;
-      padding: 10px 6px;
-      text-align: center;
-    }
-    .stat-value { font-size: 18px; font-weight: 700; color: var(--green); }
-    .stat-label { font-size: 10px; color: var(--gray-500); text-transform: uppercase; }
-    
-    /* ─── Progress ───────────────────────────────────────────── */
-    
-    .progress {
-      display: none;
-      padding: 10px 16px;
-      background: #FFFDE7;
-      border-bottom: 0.5px solid #FFF9C4;
-    }
+    .progress { display: none; padding: 10px 16px; background: #FFFDE7; border-bottom: 0.5px solid #FFF9C4; }
     .progress.visible { display: block; }
-    .progress-header { display: flex; justify-content: space-between; margin-bottom: 6px; }
+    .progress-header { display: flex; justify-content: space-between; margin-bottom: 6px; gap: 8px; }
     .progress-text { font-size: 12px; color: var(--orange); font-weight: 500; }
-    .progress-eta { font-size: 11px; color: var(--gray-500); }
+    .progress-eta { font-size: 11px; color: var(--gray-500); white-space: nowrap; }
     .progress-bar { height: 4px; background: #FFF9C4; border-radius: 2px; overflow: hidden; }
     .progress-fill { height: 100%; background: var(--orange); border-radius: 2px; transition: width 0.3s; width: 0%; }
     
-    /* ─── Filter ─────────────────────────────────────────────── */
+    /* ─── Buttons & inputs ───────────────────────────────────── */
     
-    .filter-bar {
-      display: none;
-      padding: 10px 16px;
-      background: white;
-      border-bottom: 0.5px solid var(--gray-300);
-      gap: 8px;
-    }
-    .filter-bar.visible { display: flex; flex-wrap: wrap; }
-    
-    .search-wrap {
-      flex: 1;
-      min-width: 100px;
-      position: relative;
-    }
-    .search-wrap svg {
-      position: absolute;
-      left: 10px;
-      top: 50%;
-      transform: translateY(-50%);
-      width: 14px;
-      height: 14px;
-      color: var(--gray-500);
-      pointer-events: none;
-    }
-    .search-input {
-      width: 100%;
-      padding: 7px 10px 7px 30px;
-      background: var(--gray-100);
-      border: none;
-      border-radius: var(--radius-sm);
-      font-size: 12px;
-      color: var(--gray-900);
-    }
-    .search-input:focus { outline: none; background: var(--gray-200); }
-    
-    .filter-select {
-      padding: 7px 8px;
-      background: var(--gray-100);
-      border: none;
-      border-radius: var(--radius-sm);
-      font-size: 12px;
-      cursor: pointer;
-    }
-    
-    /* ─── Table ──────────────────────────────────────────────── */
-    
-    .results-container { flex: 1; overflow-y: auto; max-height: calc(100vh - 340px); }
-    
-    .table-wrap { overflow-x: auto; }
-    
-    .results-table {
-      width: 100%;
-      border-collapse: collapse;
-      font-size: 11px;
-      white-space: nowrap;
-    }
-    .results-table th {
-      position: sticky;
-      top: 0;
-      background: var(--gray-100);
-      padding: 7px 8px;
-      text-align: left;
-      font-weight: 600;
-      color: var(--gray-500);
-      font-size: 10px;
-      text-transform: uppercase;
-      border-bottom: 0.5px solid var(--gray-300);
-      z-index: 2;
-      cursor: pointer;
-      user-select: none;
-    }
-    .results-table th:hover { color: var(--gray-900); }
-    .results-table td {
-      padding: 7px 8px;
-      border-bottom: 0.5px solid var(--gray-200);
-      max-width: 160px;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-    .results-table tr:hover td { background: var(--gray-50); }
-    
-    .cell-name { font-weight: 600; }
-    .cell-rating { color: var(--orange); font-weight: 600; }
-    .cell-phone a { color: var(--blue); text-decoration: none; }
-    .cell-phone a:hover { text-decoration: underline; }
-    .cell-wa a.wa-link { color: var(--green); text-decoration: none; font-weight: 700; }
-    .cell-wa a.wa-link:hover { text-decoration: underline; }
-    .cell-email a { color: var(--red); text-decoration: none; font-size: 10px; }
-    
-    .empty-state { text-align: center; padding: 48px 24px; color: var(--gray-500); }
-    .empty-state svg { width: 48px; height: 48px; color: var(--gray-300); margin-bottom: 12px; }
-    .empty-title { font-size: 16px; font-weight: 600; color: var(--gray-900); margin-bottom: 4px; }
-    .empty-text { font-size: 12px; max-width: 240px; margin: 0 auto; }
-    
-    /* ─── Footer ─────────────────────────────────────────────── */
-    
-    .footer {
-      position: sticky;
-      bottom: 0;
-      background: white;
-      padding: 10px 16px;
-      border-top: 0.5px solid var(--gray-300);
-      display: flex;
-      gap: 6px;
-      flex-wrap: wrap;
-    }
-    .wa-row {
-      width: 100%;
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      flex-wrap: wrap;
-      padding-bottom: 8px;
-      margin-bottom: 6px;
-      border-bottom: 0.5px solid var(--gray-200);
-    }
-    .wa-sep { color: var(--gray-500); font-size: 12px; }
     .btn { 
-      padding: 8px 10px;
-      border: none;
-      border-radius: var(--radius-sm);
-      font-size: 11px;
-      font-weight: 600;
-      cursor: pointer;
-      display: inline-flex;
-      align-items: center;
-      gap: 5px;
-      transition: all 0.15s;
-      white-space: nowrap;
+      padding: 8px 10px; border: none; border-radius: var(--radius-sm);
+      font-size: 11px; font-weight: 600; cursor: pointer;
+      display: inline-flex; align-items: center; gap: 5px;
+      transition: all 0.15s; white-space: nowrap; font-family: inherit;
     }
     .btn:active { transform: scale(0.97); }
     .btn:disabled { opacity: 0.4; cursor: not-allowed; }
     .btn svg { width: 14px; height: 14px; }
-    
     .btn-green { background: var(--green); color: white; }
     .btn-green:hover:not(:disabled) { background: var(--green-dark); }
     .btn-blue { background: var(--blue); color: white; }
+    .btn-blue:hover:not(:disabled) { background: #0066CC; }
     .btn-gray { background: var(--gray-100); color: var(--gray-900); }
     .btn-gray:hover:not(:disabled) { background: var(--gray-200); }
+    .btn-red { background: #FDECEA; color: var(--red); }
+    .btn-red:hover:not(:disabled) { background: #FBDCD9; }
     
-    .not-maps { display: none; text-align: center; padding: 48px 24px; }
-    .not-maps.visible { display: block; }
-    .not-maps svg { width: 56px; height: 56px; color: var(--gray-300); margin-bottom: 16px; }
-    .not-maps h2 { font-size: 17px; font-weight: 600; margin-bottom: 6px; }
-    .not-maps p { font-size: 12px; color: var(--gray-500); margin-bottom: 16px; }
+    .input, select.input, textarea.input {
+      width: 100%; padding: 7px 10px;
+      background: var(--gray-100); border: none;
+      border-radius: var(--radius-sm); font-size: 12px;
+      color: var(--gray-900); font-family: inherit;
+    }
+    .input:focus { outline: none; background: var(--gray-200); }
+    .num { width: 64px; padding: 6px 8px; background: var(--gray-100); border: none; border-radius: var(--radius-sm); font-size: 13px; font-weight: 600; color: var(--gray-900); text-align: center; }
+    .num:focus { outline: none; background: var(--gray-200); }
+    
+    .field { margin-bottom: 10px; }
+    .field > label { display: block; font-size: 11px; font-weight: 600; color: var(--gray-500); text-transform: uppercase; margin-bottom: 4px; }
+    .hint { font-size: 11px; color: var(--gray-500); }
+    .row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+    
+    /* ─── Tab: Leads ─────────────────────────────────────────── */
+    
+    .scrape-bar { display: flex; gap: 6px; align-items: center; margin-bottom: 10px; flex-wrap: wrap; }
+    .scrape-bar .btn { flex: 1; justify-content: center; padding: 11px; font-size: 13px; }
+    
+    .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px; background: var(--gray-200); margin-bottom: 10px; }
+    .stat-card { background: white; padding: 8px 4px; text-align: center; }
+    .stat-value { font-size: 16px; font-weight: 700; color: var(--green); }
+    .stat-label { font-size: 9px; color: var(--gray-500); text-transform: uppercase; }
+    .stat-card.gray .stat-value { color: var(--gray-700); }
+    .stat-card.blue .stat-value { color: var(--blue); }
+    .stat-card.green .stat-value { color: var(--green); }
+    
+    .filter-bar { display: flex; gap: 6px; margin-bottom: 8px; }
+    .filter-bar .input { flex: 1; min-width: 80px; }
+    .filter-bar select.input { flex: 0 0 auto; width: auto; }
+    
+    .results-container { max-height: calc(100vh - 380px); overflow-y: auto; }
+    .table-wrap { overflow-x: auto; }
+    .results-table { width: 100%; border-collapse: collapse; font-size: 11px; white-space: nowrap; background: white; }
+    .results-table th {
+      position: sticky; top: 0; background: var(--gray-100);
+      padding: 6px 7px; text-align: left; font-weight: 600;
+      color: var(--gray-500); font-size: 10px; text-transform: uppercase;
+      border-bottom: 0.5px solid var(--gray-300); z-index: 2;
+    }
+    .results-table td { padding: 6px 7px; border-bottom: 0.5px solid var(--gray-200); max-width: 140px; overflow: hidden; text-overflow: ellipsis; }
+    .results-table tr:hover td { background: var(--gray-50); }
+    .cell-name { font-weight: 600; }
+    .cell-rating { color: var(--orange); font-weight: 600; }
+    .cell-phone a { color: var(--blue); text-decoration: none; }
+    .cell-wa a.wa-link { color: var(--green); text-decoration: none; font-weight: 700; }
+    .cell-wa a.wa-link:hover { text-decoration: underline; }
+    .cell-email a { color: var(--red); text-decoration: none; font-size: 10px; }
+    
+    .status-sel { font-size: 10px; padding: 3px 4px; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; font-family: inherit; }
+    .st-new { background: var(--gray-200); color: var(--gray-700); }
+    .st-sent { background: #E3F2FD; color: #1565C0; }
+    .st-replied { background: var(--green-light); color: var(--green); }
+    .st-invalid { background: #FDECEA; color: var(--red); }
+    .st-skip { background: #FFF3E0; color: var(--orange); }
+    
+    .empty-state { text-align: center; padding: 40px 20px; color: var(--gray-500); }
+    .empty-state svg { width: 44px; height: 44px; color: var(--gray-300); margin-bottom: 10px; }
+    .empty-title { font-size: 15px; font-weight: 600; color: var(--gray-900); margin-bottom: 4px; }
+    .empty-text { font-size: 12px; max-width: 240px; margin: 0 auto; }
+    
+    .leads-footer { display: flex; gap: 6px; margin-top: 10px; }
+    
+    /* ─── Tab: Kirim ─────────────────────────────────────────── */
+    
+    .section-card { background: white; border-radius: var(--radius); padding: 12px; margin-bottom: 10px; }
+    .section-title { font-size: 12px; font-weight: 700; margin-bottom: 10px; display: flex; align-items: center; gap: 6px; }
+    .section-title .step { width: 18px; height: 18px; border-radius: 50%; background: var(--green); color: white; font-size: 11px; display: inline-flex; align-items: center; justify-content: center; }
+    
+    .radio-row { display: flex; gap: 14px; font-size: 12px; align-items: center; flex-wrap: wrap; }
+    .radio-row label { display: flex; align-items: center; gap: 5px; cursor: pointer; }
+    .radio-row input { accent-color: var(--green); }
+    
+    .target-info { font-size: 12px; color: var(--gray-700); margin-top: 8px; }
+    .target-info b { color: var(--green); }
+    
+    .preview-box { margin-top: 8px; }
+    .pv-item { margin-bottom: 10px; }
+    .pv-item b { font-size: 11px; }
+    .pv-text { font-size: 12px; background: var(--gray-100); padding: 8px 10px; border-radius: 8px; margin-top: 4px; white-space: pre-wrap; }
+    
+    .send-actions { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+    .send-actions .btn { flex: 1; justify-content: center; padding: 11px; font-size: 13px; }
+    #btn-send.running { background: var(--orange); }
+    .send-report { font-size: 12px; font-weight: 700; color: var(--green); margin-top: 8px; min-height: 16px; }
+    
+    /* ─── Tab: Pengaturan ────────────────────────────────────── */
+    
+    .note { font-size: 11px; color: var(--gray-500); background: var(--gray-100); padding: 8px 10px; border-radius: var(--radius-sm); line-height: 1.5; margin-top: 10px; }
     
     .toast {
-      position: fixed;
-      bottom: 60px;
-      left: 50%;
+      position: fixed; bottom: 60px; left: 50%;
       transform: translateX(-50%) translateY(20px);
-      background: var(--gray-900);
-      color: white;
-      padding: 8px 18px;
-      border-radius: 20px;
-      font-size: 12px;
-      font-weight: 500;
-      opacity: 0;
-      transition: all 0.3s;
-      z-index: 100;
-      pointer-events: none;
+      background: var(--gray-900); color: white;
+      padding: 8px 18px; border-radius: 20px; font-size: 12px; font-weight: 500;
+      opacity: 0; transition: all 0.3s; z-index: 100; pointer-events: none;
+      max-width: 90%; text-align: center;
     }
     .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
     
@@ -410,229 +218,208 @@
   <div class="header">
     <div class="header-brand">
       <div class="header-icon-box">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
       </div>
       <div class="header-title">Maps Lead Scraper</div>
     </div>
-    <div class="header-badge" id="lead-count">
+    <div class="header-badge">
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
       <span id="lead-count-text">0</span>
     </div>
   </div>
   
-  <!-- Controls -->
-  <div class="controls">
-    <button class="scrape-btn" id="btn-scrape">
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
-      <span id="btn-scrape-text">Scrape Listings</span>
-    </button>
-    <div class="options">
-      <label class="opt">
-        <input type="checkbox" id="opt-scroll" checked>
-        <span>Auto-scroll</span>
-      </label>
-      <label class="opt">
-        <input type="checkbox" id="opt-details" checked>
-        <span>Get details</span>
-      </label>
-      <label class="opt">
-        <input type="checkbox" id="opt-emails">
-        <span>Extract emails</span>
-      </label>
-      <label class="opt">
-        <input type="checkbox" id="opt-dedup" checked>
-        <span>Deduplicate</span>
-      </label>
-    </div>
-    <div class="limit-row">
-      <label class="opt">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-        <span>Max listings:</span>
-      </label>
-      <input type="number" class="limit-input" id="max-listings" value="0" min="0" placeholder="0 = all">
-      <span class="limit-hint">(0 = semua)</span>
-    </div>
-    <details class="wa-settings">
-      <summary>⚙️ Pengaturan WA & AI (DeepSeek)</summary>
-      <div class="settings-grid">
-        <label>DeepSeek API Key
-          <input type="password" id="wa-api-key" placeholder="sk-… (dari platform.deepseek.com)" autocomplete="off">
-        </label>
-        <label>Nama pengirim
-          <input type="text" id="wa-sender" placeholder="mis: Budi dari Homestay Bening">
-        </label>
-        <label>Model AI
-          <select id="wa-model">
-            <option value="deepseek-v4-flash">deepseek-v4-flash (cepat & murah)</option>
-            <option value="deepseek-v4-pro">deepseek-v4-pro (lebih pintar)</option>
-          </select>
-        </label>
-        <label>Jasa/produk yang ditawarkan
-          <textarea id="wa-offer" rows="2" placeholder="mis: paket homestay 2 hari 1 malam mulai 500rb, free breakfast"></textarea>
-        </label>
-        <label>Link web / portfolio (opsional)
-          <input type="text" id="wa-link" placeholder="mis: https://homestaybening.com">
-        </label>
-        <label>Gaya bahasa
-          <select id="wa-tone">
-            <option value="ramah">Ramah & santai</option>
-            <option value="formal">Formal & sopan</option>
-            <option value="profesional">Profesional</option>
-            <option value="persuasif">Persuasif (promosi)</option>
-            <option value="singkat">Singkat & langsung</option>
-          </select>
-        </label>
-        <label>Gambar untuk dikirim (opsional)
-          <span class="inline">
-            <input type="file" id="wa-image" accept="image/*" multiple>
-            <span class="limit-hint" id="wa-image-label">belum ada gambar</span>
-          </span>
-        </label>
-        <label>Jeda antar potongan pesan (detik)
-          <span class="inline">
-            <input type="number" id="wa-chunk-min" min="1" value="3" class="limit-input">
-            <span class="wa-sep">–</span>
-            <input type="number" id="wa-chunk-max" min="2" value="8" class="limit-input">
-          </span>
-        </label>
-        <label>Batas kontak per hari
-          <input type="number" id="wa-cap" min="1" value="30" class="limit-input">
-        </label>
-        <label>Mode kirim
-          <select id="wa-mode">
-            <option value="auto">Auto — ketik & kirim di WhatsApp Web</option>
-            <option value="manual">Manual — buka chat saja</option>
-          </select>
-        </label>
-        <div class="inline" style="margin-top:2px;">
-          <button class="btn btn-blue" id="btn-wa-login" style="flex:1;">Login WhatsApp Web (QR)</button>
-          <span class="limit-hint" id="wa-status"></span>
-        </div>
-      </div>
-    </details>
+  <!-- Tabs -->
+  <div class="tabs">
+    <button class="tab-btn active" data-tab="leads">Leads</button>
+    <button class="tab-btn" data-tab="kirim">Kirim</button>
+    <button class="tab-btn" data-tab="pengaturan">Pengaturan</button>
   </div>
   
-  <!-- Stats -->
-  <div class="stats" id="stats">
-    <div class="stat-card">
-      <div class="stat-value" id="stat-total">0</div>
-      <div class="stat-label">Total</div>
-    </div>
-    <div class="stat-card">
-      <div class="stat-value" id="stat-phone">0</div>
-      <div class="stat-label">Phone</div>
-    </div>
-    <div class="stat-card">
-      <div class="stat-value" id="stat-website">0</div>
-      <div class="stat-label">Website</div>
-    </div>
-    <div class="stat-card">
-      <div class="stat-value" id="stat-email">0</div>
-      <div class="stat-label">Email</div>
-    </div>
-  </div>
-  
-  <!-- Progress -->
+  <!-- Progress (global) -->
   <div class="progress" id="progress">
     <div class="progress-header">
-      <span class="progress-text" id="progress-text">Scraping...</span>
+      <span class="progress-text" id="progress-text">…</span>
       <span class="progress-eta" id="progress-eta"></span>
     </div>
-    <div class="progress-bar">
-      <div class="progress-fill" id="progress-fill"></div>
-    </div>
+    <div class="progress-bar"><div class="progress-fill" id="progress-fill"></div></div>
   </div>
   
-  <!-- Filter -->
-  <div class="filter-bar" id="filter-bar">
-    <div class="search-wrap">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
-      <input type="text" class="search-input" id="search-input" placeholder="Search...">
-    </div>
-    <select class="filter-select" id="filter-rating">
-      <option value="">All ratings</option>
-      <option value="4.5">4.5+</option>
-      <option value="4.0">4.0+</option>
-      <option value="3.5">3.5+</option>
-    </select>
-    <select class="filter-select" id="filter-has">
-      <option value="">All</option>
-      <option value="phone">Has phone</option>
-      <option value="website">Has website</option>
-      <option value="email">Has email</option>
-    </select>
-  </div>
-  
-  <!-- Results -->
-  <div class="results-container" id="results-container">
-    <div class="empty-state" id="empty-state">
-      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
-      <div class="empty-title">Google Maps Lead Scraper</div>
-      <div class="empty-text">Search on Google Maps, then click Scrape to extract business leads</div>
-    </div>
-    <div class="table-wrap" id="table-wrap" style="display:none;">
-      <table class="results-table">
-        <thead>
-          <tr>
-            <th data-sort="index">#</th>
-            <th data-sort="name">Name</th>
-            <th data-sort="category">Category</th>
-            <th data-sort="rating">Rating</th>
-            <th data-sort="phone">Phone</th>
-            <th>WA</th>
-            <th data-sort="email">Email</th>
-          </tr>
-        </thead>
-        <tbody id="results-body"></tbody>
-      </table>
-    </div>
-  </div>
-  
-  <!-- Not Maps -->
-  <div class="not-maps" id="not-maps">
-    <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
-    <h2>Open Google Maps</h2>
-    <p>Navigate to Google Maps and search for businesses.</p>
-    <button class="btn btn-green" id="btn-open-maps">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
-      Open Maps
-    </button>
-  </div>
-  
-  <!-- Footer -->
-  <div class="footer">
-    <div class="wa-row">
-      <button class="btn btn-green" id="btn-wa" disabled>
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
-        Follow up WA
+  <!-- ═══════ Tab: LEADS ═══════ -->
+  <section class="tab-panel active" id="tab-leads">
+    <div class="scrape-bar">
+      <button class="btn btn-green" id="btn-scrape">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+        <span id="btn-scrape-text">Scrape dari Google Maps</span>
       </button>
-      <button class="btn btn-gray" id="btn-wa-stop" disabled>Stop</button>
-      <input type="number" class="limit-input" id="wa-min" value="45" min="5" title="Jeda minimal antar chat (detik)">
-      <span class="wa-sep">–</span>
-      <input type="number" class="limit-input" id="wa-max" value="120" min="10" title="Jeda maksimal antar chat (detik)">
-      <span class="limit-hint">jeda acak antar chat (detik)</span>
-      <span class="limit-hint" id="wa-report" style="color:var(--green);font-weight:600;"></span>
     </div>
-    <button class="btn btn-gray" id="btn-save" disabled>
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
-      Save
-    </button>
-    <button class="btn btn-gray" id="btn-load">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-      Load
-    </button>
-    <button class="btn btn-green" id="btn-csv" disabled>
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/></svg>
-      CSV
-    </button>
-    <button class="btn btn-blue" id="btn-sheets" disabled>
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="18" height="18" x="3" y="3" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/></svg>
-      Sheets
-    </button>
-  </div>
+    <div class="row" style="margin-bottom:10px;">
+      <label class="hint" style="display:flex;align-items:center;gap:4px;">
+        Batas: <input type="number" class="num" id="max-listings" value="0" min="0" title="0 = semua">
+      </label>
+      <label class="hint" style="display:flex;align-items:center;gap:4px;">
+        <input type="checkbox" id="opt-emails" style="accent-color:var(--green);"> Cari email juga
+      </label>
+    </div>
+    
+    <div class="stats">
+      <div class="stat-card gray"><div class="stat-value" id="stat-total">0</div><div class="stat-label">Total</div></div>
+      <div class="stat-card gray"><div class="stat-value" id="stat-baru">0</div><div class="stat-label">Baru</div></div>
+      <div class="stat-card blue"><div class="stat-value" id="stat-terkirim">0</div><div class="stat-label">Terkirim</div></div>
+      <div class="stat-card green"><div class="stat-value" id="stat-dibalas">0</div><div class="stat-label">Dibalas</div></div>
+    </div>
+    
+    <div class="filter-bar">
+      <input type="text" class="input" id="search-input" placeholder="Cari nama / kategori / alamat…">
+      <select class="input" id="filter-status">
+        <option value="">Semua status</option>
+        <option value="baru">Baru</option>
+        <option value="terkirim">Terkirim</option>
+        <option value="dibalas">Dibalas</option>
+        <option value="invalid">Invalid</option>
+        <option value="skip">Skip</option>
+      </select>
+    </div>
+    
+    <div class="results-container">
+      <div class="empty-state" id="empty-state">
+        <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
+        <div class="empty-title">Belum ada data</div>
+        <div class="empty-text">Buka Google Maps, cari bisnis, lalu klik Scrape. Hasilnya masuk ke database di sini.</div>
+      </div>
+      <div class="table-wrap" id="table-wrap" style="display:none;">
+        <table class="results-table">
+          <thead><tr>
+            <th>#</th><th>Nama</th><th>Kategori</th><th>Rating</th><th>Phone</th><th>WA</th><th>Status</th><th>Email</th>
+          </tr></thead>
+          <tbody id="results-body"></tbody>
+        </table>
+      </div>
+    </div>
+    
+    <div class="leads-footer">
+      <button class="btn btn-gray" id="btn-csv" disabled>CSV</button>
+      <button class="btn btn-red" id="btn-clear-invalid" disabled>Hapus Invalid</button>
+      <button class="btn btn-gray" id="btn-open-maps">Buka Google Maps</button>
+    </div>
+  </section>
+  
+  <!-- ═══════ Tab: KIRIM ═══════ -->
+  <section class="tab-panel" id="tab-kirim">
+    
+    <div class="section-card">
+      <div class="section-title"><span class="step">1</span> Pilih target</div>
+      <div class="radio-row">
+        <label><input type="radio" name="target" value="baru" id="target-baru" checked> Yang Baru (belum dihubungi)</label>
+        <label><input type="radio" name="target" value="followup" id="target-followup"> Follow-up belum dibalas</label>
+      </div>
+      <div class="row" style="margin-top:8px;">
+        <span class="hint" id="followup-row" style="display:none;">Sudah ≥ <input type="number" class="num" id="followup-days" value="3" min="1"> hari</span>
+        <span class="target-info" id="target-count"></span>
+      </div>
+      <div class="target-info" id="target-preview"></div>
+    </div>
+    
+    <div class="section-card">
+      <div class="section-title"><span class="step">2</span> Susun pesan</div>
+      <div class="field">
+        <label>Nama pengirim</label>
+        <input type="text" class="input" id="msg-sender" placeholder="mis: Budi dari Homestay Bening">
+      </div>
+      <div class="field">
+        <label>Jasa / produk yang ditawarkan</label>
+        <textarea class="input" id="msg-offer" rows="2" placeholder="mis: paket homestay 2D1N mulai 500rb, free breakfast"></textarea>
+      </div>
+      <div class="field">
+        <label>Link web / portfolio (opsional)</label>
+        <input type="text" class="input" id="msg-link" placeholder="mis: https://homestaybening.com">
+      </div>
+      <div class="field">
+        <label>Gaya bahasa</label>
+        <select class="input" id="msg-tone">
+          <option value="ramah">Ramah & santai</option>
+          <option value="formal">Formal & sopan</option>
+          <option value="profesional">Profesional</option>
+          <option value="persuasif">Persuasif (promosi)</option>
+          <option value="singkat">Singkat & langsung</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Pesan manual (opsional — kosongkan untuk otomatis oleh AI)</label>
+        <textarea class="input" id="msg-manual" rows="3" placeholder="Tulis pesan sendiri di sini. Pakai {nama} agar diganti nama bisnis tiap lead."></textarea>
+      </div>
+      <button class="btn btn-blue" id="btn-preview" style="width:100%;justify-content:center;">Lihat contoh pesan</button>
+      <div class="preview-box" id="preview-box"></div>
+    </div>
+    
+    <div class="section-card">
+      <div class="section-title"><span class="step">3</span> Kirim</div>
+      <div class="field">
+        <label>Gambar lampiran (opsional)</label>
+        <div class="row">
+          <input type="file" id="wa-image" accept="image/*" multiple class="input" style="padding:4px;">
+          <span class="hint" id="wa-image-label">belum ada gambar</span>
+        </div>
+      </div>
+      <div class="field">
+        <label>Jeda acak antar kontak (detik)</label>
+        <div class="row">
+          <input type="number" class="num" id="wa-min" value="45" min="5"> <span class="hint">–</span>
+          <input type="number" class="num" id="wa-max" value="120" min="10">
+          <span class="hint">(anti-ban)</span>
+        </div>
+      </div>
+      <div class="send-actions">
+        <button class="btn btn-green" id="btn-send">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+          <span id="btn-send-text">Kirim</span>
+        </button>
+        <button class="btn btn-red" id="btn-send-stop" disabled>Stop</button>
+      </div>
+      <div class="send-report" id="send-report"></div>
+    </div>
+  </section>
+  
+  <!-- ═══════ Tab: PENGATURAN ═══════ -->
+  <section class="tab-panel" id="tab-pengaturan">
+    <div class="section-card">
+      <div class="section-title">AI & pengiriman</div>
+      <div class="field">
+        <label>DeepSeek API Key (platform.deepseek.com)</label>
+        <input type="password" class="input" id="set-api-key" placeholder="sk-…" autocomplete="off">
+      </div>
+      <div class="field">
+        <label>Model AI</label>
+        <select class="input" id="set-model">
+          <option value="deepseek-v4-flash">deepseek-v4-flash (cepat & murah)</option>
+          <option value="deepseek-v4-pro">deepseek-v4-pro (lebih pintar)</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Jeda antar potongan pesan (detik)</label>
+        <div class="row">
+          <input type="number" class="num" id="set-chunk-min" value="3" min="1"> <span class="hint">–</span>
+          <input type="number" class="num" id="set-chunk-max" value="8" min="2">
+        </div>
+      </div>
+      <div class="field">
+        <label>Batas kontak per hari</label>
+        <input type="number" class="num" id="set-cap" value="30" min="1">
+        <span class="hint"> — berhenti otomatis setelah tercapai (anti-ban)</span>
+      </div>
+    </div>
+    <div class="section-card">
+      <div class="section-title">WhatsApp Web</div>
+      <div class="field">
+        <button class="btn btn-blue" id="btn-wa-login" style="width:100%;justify-content:center;">Login WhatsApp Web (QR)</button>
+        <div class="hint" id="wa-login-status" style="margin-top:6px;">Status belum dicek.</div>
+      </div>
+      <div class="note">
+        <b>Alur pemakaian:</b> 1) Scrape lead di tab Leads. 2) Saring dengan filter status/kategori. 3) Di tab Kirim, pilih target, susun pesan, lihat contoh, lalu Kirim. Lead yang terkirim otomatis berstatus <b>Terkirim</b>; yang gagal (nomor tidak punya WA) menjadi <b>Invalid</b>; yang dibalas Anda tandai <b>Dibalas</b>. Follow-up hanya menyasar yang belum dibalas. Semua tersimpan otomatis.
+      </div>
+    </div>
+  </section>
   
   <div class="toast" id="toast"></div>
-  
   <script src="sidepanel.js"></script>
 </body>
 </html>

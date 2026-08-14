@@ -68,6 +68,28 @@ Google Maps tab
          follow-up WhatsApp (wa.me + jeda acak)
 ```
 
+## v3.7 — Desain ulang total (alur: Kumpulkan → Saring → Kirim → Lacak → Follow-up)
+
+### Audit fitur (yang tidak berfungsi disingkirkan)
+- ❌ **Google Sheets / Excel export dihapus** (tidak berfungsi / tidak pernah ada) — hanya **CSV** (kini dengan kolom Status & Tanggal Kirim).
+- ❌ **Checkbox Auto-scroll / Get details / Deduplicate dihapus** — selalu aktif secara default.
+- ❌ **Tombol Save/Load dihapus** — data tersimpan otomatis setiap saat.
+- ❌ **Mode Auto/Manual dihapus** — kirim otomatis jika WA Web login; tombol WA per baris tetap tersedia untuk manual.
+
+### UX baru: 3 tab
+| Tab | Isi |
+|---|---|
+| **Leads** | Scrape, statistik (Total/Baru/Terkirim/Dibalas), filter (cari + status), tabel dengan **status per lead**, export CSV, hapus invalid |
+| **Kirim** | 1) Pilih target (Baru / Follow-up belum dibalas ≥ N hari) 2) Susun pesan (pengirim, jasa/produk, link, gaya bahasa, pesan manual opsional, **Preview contoh pesan**) 3) Kirim (gambar, jeda acak, batas harian, progress Terkirim/Gagal/Total) |
+| **Pengaturan** | API key DeepSeek, model, jeda antar chunk, batas harian, tombol Login WA Web + status |
+
+### Logika status (satu sumber kebenaran)
+- Setiap lead: `baru` → `terkirim` (tanggal) → `dibalas` / `invalid` / `skip` — disimpan otomatis di storage.
+- Target kirim hanya `baru` (atau `terkirim` yang sudah ≥ N hari & belum dibalas) — **tidak pernah kirim ulang ke orang yang sama**.
+- Gagal kirim → `invalid` (tidak dicoba lagi). `dibalas`/`skip` tidak pernah dikirim.
+- Pesan follow-up di-generate berbeda dari pesan pertama (LLM diberi konteks tindak lanjut).
+- Pesan manual didukung dengan placeholder `{nama}`; preview bisa dicek sebelum kirim.
+
 ## Optimasi v3.6 (input gambar, settings AI terstruktur, monitoring)
 
 ### Input gambar

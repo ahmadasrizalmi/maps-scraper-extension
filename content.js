@@ -1,4 +1,4 @@
-// Maps Lead Scraper — Content Script v3.6
+// Maps Lead Scraper — Content Script v3.7
 // v3.4+: robust phone scraping (PUA-char stripping + click-to-reveal),
 // email extraction moved to side panel (content-script fetch is CORS-blocked).
 
@@ -389,5 +389,5 @@
     }
   });
 
-  console.log('[Maps Lead Scraper] Content script v3.6 loaded — robust phone, emails via side panel');
+  console.log('[Maps Lead Scraper] Content script v3.7 loaded — robust phone, emails via side panel');
 })();
