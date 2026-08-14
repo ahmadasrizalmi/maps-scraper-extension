@@ -68,6 +68,12 @@ Google Maps tab
          follow-up WhatsApp (wa.me + jeda acak)
 ```
 
+## v3.8.2 — Auto-save settings, status login WA persisten, unlimited storage
+
+- **Settings auto-save**: API key, model, jasa/produk, gaya bahasa, dll. tersimpan otomatis saat diketik (400ms setelah berhenti mengetik) + indikator "✓ Tersimpan" — tidak perlu tombol Save, tidak perlu input ulang.
+- **Status login WA persisten**: hasil cek login disimpan; tampil otomatis di tab Pengaturan & Kirim. Auto-cek (tanpa reload) setiap kali tab Kirim/Pengaturan dibuka.
+- **`unlimitedStorage`**: hapus batas 10MB chrome.storage — data lead, history, sesi aman dalam jumlah besar.
+
 ## v3.8 — Riwayat sesi & history per lead
 
 Sebelumnya setiap lead hanya menyimpan **status terakhir + tanggal kirim terakhir** — sesi follow-up yang berbeda tercampur. Sekarang:

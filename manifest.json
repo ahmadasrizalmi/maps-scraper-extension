@@ -1,14 +1,15 @@
 {
   "manifest_version": 3,
   "name": "Maps Lead Scraper",
-  "version": "3.8.1",
+  "version": "3.8.2",
   "description": "Scrape business leads from Google Maps — sidebar panel with search, filters, export to Excel/Sheets",
   "permissions": [
     "activeTab",
     "scripting",
     "downloads",
     "sidePanel",
-    "storage"
+    "storage",
+    "unlimitedStorage"
   ],
   "host_permissions": [
     "https://www.google.com/maps/*",

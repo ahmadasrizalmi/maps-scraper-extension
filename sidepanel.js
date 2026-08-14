@@ -89,6 +89,7 @@ function switchTab(name) {
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === name));
   ['tab-leads','tab-kirim','tab-pengaturan','tab-riwayat'].forEach(id => $(id).classList.toggle('active', id === 'tab-' + name));
   if (name === 'kirim') updateTargetInfo();
+  if (name === 'kirim' || name === 'pengaturan') checkWAStatus(); // auto-cek tanpa reload
 }
 
 // ─── Phone normalization (Indonesia-first) ──────────────────────────
@@ -512,11 +513,13 @@ async function sendWA() {
   // Cek login WhatsApp Web (reload tab otomatis jika content script belum terpasang)
   const { tab: waTab, loggedIn } = await ensureWATabReady();
   if (!loggedIn) {
-    $('wa-login-status').textContent = 'Belum login — buka tab WA & scan QR';
+    await persistWAStatus(false);
+    setWAStatusUI(false);
     toast('Login WhatsApp Web dulu (tab Pengaturan → Login WA Web)');
     return;
   }
-  $('wa-login-status').textContent = '✓ Sudah login';
+  await persistWAStatus(true);
+  setWAStatusUI(true);
   
   sendState.running = true;
   sendState.stop = false;
@@ -599,13 +602,44 @@ async function sendWA() {
 
 // ─── WhatsApp Web login helper ──────────────────────────────────────
 
+let waStatus = { loggedIn: null, at: null };
+
+async function loadWAStatus() {
+  const s = await chrome.storage.local.get('waStatus');
+  waStatus = s.waStatus || { loggedIn: null, at: null };
+  if (waStatus.loggedIn === true) setWAStatusUI(true, waStatus.at);
+  else if (waStatus.loggedIn === false) setWAStatusUI(false);
+}
+
+async function persistWAStatus(loggedIn) {
+  waStatus = { loggedIn, at: new Date().toISOString() };
+  await chrome.storage.local.set({ waStatus });
+}
+
+function setWAStatusUI(ok, at) {
+  const t = at ? new Date(at).toLocaleTimeString('id-ID', { hour:'2-digit', minute:'2-digit' }) : new Date().toLocaleTimeString('id-ID', { hour:'2-digit', minute:'2-digit' });
+  if ($('wa-login-status')) $('wa-login-status').textContent = ok ? `✓ Sudah login (dicek ${t})` : 'Belum login';
+  if ($('kirim-wa-status')) $('kirim-wa-status').textContent = ok ? '✓ WhatsApp Web sudah login — siap kirim' : '⚠ WhatsApp Web belum login — klik Login WA Web di tab Pengaturan';
+}
+
+// Cek status tanpa reload (aman dipanggil otomatis)
+async function checkWAStatus() {
+  const tabs = await chrome.tabs.query({ url: 'https://web.whatsapp.com/*' });
+  if (!tabs.length) { setWAStatusUI(false); return false; }
+  const res = await sendToWATab(tabs[0].id, { type: 'WA_PING' }, 5);
+  const ok = !!res?.loggedIn;
+  await persistWAStatus(ok);
+  setWAStatusUI(ok);
+  return ok;
+}
+
 async function waLoginCheck() {
   $('wa-login-status').textContent = 'mengecek…';
-  const { tab, loggedIn } = await ensureWATabReady();
+  const { tab, loggedIn } = await ensureWATabReady(); // dengan reload jika perlu
   await chrome.tabs.update(tab.id, { active: true });
-  $('wa-login-status').textContent = loggedIn
-    ? '✓ Sudah login'
-    : 'Belum login — buka tab WhatsApp Web & scan QR (tab sudah di-reload)';
+  await persistWAStatus(loggedIn);
+  setWAStatusUI(loggedIn);
+  toast(loggedIn ? '✓ WhatsApp Web sudah login' : 'Belum login — scan QR di tab WhatsApp Web');
 }
 
 // ─── Events ─────────────────────────────────────────────────────────
@@ -661,6 +695,22 @@ $('wa-image').addEventListener('change', async (e) => {
 
 $('btn-wa-login').addEventListener('click', waLoginCheck);
 
+// Auto-save settings saat diketik (tidak perlu tombol save)
+let settingsTimer = null;
+const SETTINGS_FIELDS = ['set-api-key','set-model','set-chunk-min','set-chunk-max','set-cap','msg-sender','msg-offer','msg-link','msg-tone'];
+function scheduleSettingsSave() {
+  clearTimeout(settingsTimer);
+  settingsTimer = setTimeout(async () => {
+    await saveSettings();
+    const el = $('settings-status');
+    if (el) el.textContent = '✓ Tersimpan ' + new Date().toLocaleTimeString('id-ID', { hour:'2-digit', minute:'2-digit', second:'2-digit' });
+  }, 400);
+}
+SETTINGS_FIELDS.forEach(id => {
+  const el = $(id);
+  if (el) { el.addEventListener('input', scheduleSettingsSave); el.addEventListener('change', scheduleSettingsSave); }
+});
+
 $('btn-clear-sessions').addEventListener('click', async () => {
   sessions = [];
   await chrome.storage.local.remove('mapsSessions');
@@ -689,6 +739,7 @@ chrome.runtime.onMessage.addListener((msg) => {
   await loadSettings();
   await loadLeads();
   await loadSessions();
+  await loadWAStatus();
   switchTab('leads');
   updateTargetInfo();
   renderRiwayat();

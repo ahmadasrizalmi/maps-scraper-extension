@@ -382,6 +382,7 @@
         <button class="btn btn-red" id="btn-send-stop" disabled>Stop</button>
       </div>
       <div class="send-report" id="send-report"></div>
+      <div class="hint" id="kirim-wa-status"></div>
     </div>
   </section>
   
@@ -389,6 +390,10 @@
   <section class="tab-panel" id="tab-pengaturan">
     <div class="section-card">
       <div class="section-title">AI & pengiriman</div>
+      <div class="row" style="justify-content:space-between;margin-bottom:8px;">
+        <span class="hint">Tersimpan otomatis & permanen di browser ini.</span>
+        <span class="hint" id="settings-status" style="color:var(--green);font-weight:700;"></span>
+      </div>
       <div class="field">
         <label>DeepSeek API Key (platform.deepseek.com)</label>
         <input type="password" class="input" id="set-api-key" placeholder="sk-…" autocomplete="off">
