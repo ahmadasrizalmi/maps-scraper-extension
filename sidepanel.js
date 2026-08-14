@@ -16,6 +16,12 @@ const $ = id => document.getElementById(id);
 const STATUS_LABEL = { baru:'Baru', terkirim:'Terkirim', dibalas:'Dibalas', invalid:'Invalid', skip:'Skip' };
 const STATUS_CLASS = { baru:'st-new', terkirim:'st-sent', dibalas:'st-replied', invalid:'st-invalid', skip:'st-skip' };
 
+// Icon SVG inline (pengganti emoji)
+const ICON_CHECK = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:4px;"><polyline points="20 6 9 17 4 12"/></svg>';
+const ICON_WARN = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--orange);vertical-align:-2px;margin-right:4px;"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>';
+const ICON_EYE = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>';
+const ICON_EYE_OFF = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><path d="M14.12 14.12a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>';
+
 const WA_TEMPLATE = (name) => `Halo ${name || 'admin'}, saya ingin menanyakan produk/layanan Anda. Terima kasih.`;
 
 const TONES = {
@@ -378,7 +384,7 @@ async function saveSettings() {
 
 function showSettingsSaved() {
   const el = $('settings-status');
-  if (el) el.textContent = '✓ Tersimpan ' + new Date().toLocaleTimeString('id-ID', { hour:'2-digit', minute:'2-digit', second:'2-digit' });
+  if (el) el.innerHTML = `${ICON_CHECK} Tersimpan ${new Date().toLocaleTimeString('id-ID', { hour:'2-digit', minute:'2-digit', second:'2-digit' })}`;
 }
 
 async function loadSettings() {
@@ -632,8 +638,10 @@ async function persistWAStatus(loggedIn) {
 
 function setWAStatusUI(ok, at) {
   const t = at ? new Date(at).toLocaleTimeString('id-ID', { hour:'2-digit', minute:'2-digit' }) : new Date().toLocaleTimeString('id-ID', { hour:'2-digit', minute:'2-digit' });
-  if ($('wa-login-status')) $('wa-login-status').textContent = ok ? `✓ Sudah login (dicek ${t})` : 'Belum login';
-  if ($('kirim-wa-status')) $('kirim-wa-status').textContent = ok ? '✓ WhatsApp Web sudah login — siap kirim' : '⚠ WhatsApp Web belum login — klik Login WA Web di tab Pengaturan';
+  if ($('wa-login-status')) $('wa-login-status').innerHTML = ok ? `${ICON_CHECK} Sudah login (dicek ${t})` : 'Belum login';
+  if ($('kirim-wa-status')) $('kirim-wa-status').innerHTML = ok
+    ? `${ICON_CHECK} WhatsApp Web sudah login — siap kirim`
+    : `${ICON_WARN} WhatsApp Web belum login — klik Login WA Web di tab Pengaturan`;
 }
 
 // Cek status tanpa reload (aman dipanggil otomatis)
@@ -653,7 +661,7 @@ async function waLoginCheck() {
   await chrome.tabs.update(tab.id, { active: true });
   await persistWAStatus(loggedIn);
   setWAStatusUI(loggedIn);
-  toast(loggedIn ? '✓ WhatsApp Web sudah login' : 'Belum login — scan QR di tab WhatsApp Web');
+  toast(loggedIn ? 'WhatsApp Web sudah login' : 'Belum login — scan QR di tab WhatsApp Web');
 }
 
 // ─── Events ─────────────────────────────────────────────────────────
@@ -751,7 +759,7 @@ $('btn-save-settings').addEventListener('click', async () => {
 $('btn-toggle-key').addEventListener('click', () => {
   const inp = $('set-api-key');
   inp.type = inp.type === 'password' ? 'text' : 'password';
-  $('btn-toggle-key').textContent = inp.type === 'password' ? '👁' : '🙈';
+  $('btn-toggle-key').innerHTML = inp.type === 'password' ? ICON_EYE : ICON_EYE_OFF;
 });
 
 // Simpan terakhir kali saat panel ditutup
