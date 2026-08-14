@@ -50,6 +50,8 @@ async function init() {
     indexLeads();
     render();
   }
+  
+  await loadWASettings();
 }
 
 async function getTab() {
@@ -239,51 +241,208 @@ async function extractEmailsFromWebsites(leads, onProgress) {
 }
 
 // ─── WhatsApp follow-up queue (anti-ban: shuffle + random delay) ─────
+// Mode auto   : navigasi tab WhatsApp Web, ketik & kirim via whatsapp.js
+// Mode manual : buka chat wa.me saja (tanpa kirim otomatis)
 
 let waRunning = false;
 let waStop = false;
+let waSettings = {
+  apiKey: '', sender: '', model: 'deepseek-v4-flash', instruction: '',
+  chunkMin: 3, chunkMax: 8, dailyCap: 30, mode: 'auto'
+};
+const msgCache = new Map(); // nama lead -> pesan yang sudah di-generate
 
 const wait = ms => new Promise(r => setTimeout(r, ms));
 
+async function loadWASettings() {
+  const s = await chrome.storage.local.get('waSettings');
+  if (s.waSettings) waSettings = { ...waSettings, ...s.waSettings };
+  $('wa-api-key').value = waSettings.apiKey;
+  $('wa-sender').value = waSettings.sender;
+  $('wa-model').value = waSettings.model;
+  $('wa-instruction').value = waSettings.instruction;
+  $('wa-chunk-min').value = waSettings.chunkMin;
+  $('wa-chunk-max').value = waSettings.chunkMax;
+  $('wa-cap').value = waSettings.dailyCap;
+  $('wa-mode').value = waSettings.mode;
+}
+
+async function saveWASettings() {
+  waSettings = {
+    apiKey: $('wa-api-key').value.trim(),
+    sender: $('wa-sender').value.trim(),
+    model: $('wa-model').value,
+    instruction: $('wa-instruction').value.trim(),
+    chunkMin: Math.max(1, parseInt($('wa-chunk-min').value, 10) || 3),
+    chunkMax: Math.max(2, parseInt($('wa-chunk-max').value, 10) || 8),
+    dailyCap: Math.max(1, parseInt($('wa-cap').value, 10) || 30),
+    mode: $('wa-mode').value
+  };
+  await chrome.storage.local.set({ waSettings });
+}
+
+// Batas harian (per tanggal, disimpan di chrome.storage)
+async function waCountToday() {
+  const today = new Date().toISOString().split('T')[0];
+  const d = await chrome.storage.local.get('waDaily');
+  return (d.waDaily && d.waDaily.date === today) ? d.waDaily.count : 0;
+}
+async function bumpWACount() {
+  const today = new Date().toISOString().split('T')[0];
+  const d = await chrome.storage.local.get('waDaily');
+  const count = (d.waDaily && d.waDaily.date === today) ? d.waDaily.count : 0;
+  await chrome.storage.local.set({ waDaily: { date: today, count: count + 1 } });
+}
+
+// Pesan personal via DeepSeek (deepseek-v4-flash, non-thinking)
+async function generateMessage(lead) {
+  if (!waSettings.apiKey) return null;
+  try {
+    const sender = waSettings.sender || '[NAMA ANDA]';
+    const system = 'Kamu adalah asisten pemasaran yang menulis pesan WhatsApp singkat, sopan, natural, dalam Bahasa Indonesia. Tanpa markdown, tanpa emoji berlebihan, tanpa judul. Maksimal 200 kata.';
+    const user = `Tulis pesan follow-up WhatsApp untuk pemilik bisnis ini.\nNama bisnis: ${lead.name}\nKategori: ${lead.category || '-'}\nAlamat: ${lead.address || '-'}\nPengirim: ${sender}\nGaya: perkenalkan diri singkat sebagai ${sender}, sapa pemilik ${lead.name}, sampaikan tujuan (${waSettings.instruction || 'menawarkan kerja sama / produk Anda'}), dan akhiri dengan terima kasih.`;
+    const r = await fetch('https://api.deepseek.com/chat/completions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + waSettings.apiKey },
+      body: JSON.stringify({
+        model: waSettings.model,
+        messages: [{ role: 'system', content: system }, { role: 'user', content: user }],
+        thinking: { type: 'disabled' },
+        temperature: 0.8,
+        max_tokens: 500
+      })
+    });
+    if (!r.ok) throw new Error('DeepSeek HTTP ' + r.status);
+    const j = await r.json();
+    const text = (j.choices?.[0]?.message?.content || '').trim()
+      .replace(/[*_#`>]/g, '')
+      .replace(/\s+/g, ' ');
+    return text || null;
+  } catch (e) {
+    console.warn('[WA] LLM gagal, pakai template:', e);
+    return null;
+  }
+}
+
+// Pecah teks panjang jadi chunk seukuran manusia (potong di akhir kalimat)
+function splitMessage(text, min = 150, max = 300) {
+  const t = (text || '').trim();
+  if (!t) return [];
+  if (t.length <= max) return [t];
+  const sentences = t.match(/[^.!?…]+[.!?…]*\s*/g) || [t];
+  const chunks = [];
+  let cur = '';
+  for (const s of sentences) {
+    if ((cur + s).length > max && cur.length >= min) { chunks.push(cur.trim()); cur = s; }
+    else cur += s;
+  }
+  if (cur.trim()) chunks.push(cur.trim());
+  return chunks;
+}
+
+// Manajemen tab WhatsApp Web
+async function getWATab() {
+  const tabs = await chrome.tabs.query({ url: 'https://web.whatsapp.com/*' });
+  if (tabs.length) return tabs[0];
+  return chrome.tabs.create({ url: 'https://web.whatsapp.com/' });
+}
+
+async function sendToWATab(tabId, msg, attempts = 20) {
+  for (let i = 0; i < attempts; i++) {
+    try {
+      return await chrome.tabs.sendMessage(tabId, msg);
+    } catch (e) {
+      await wait(1000); // content script mungkin belum siap setelah reload
+    }
+  }
+  return { ok: false, error: 'Tab WA tidak merespons (content script belum siap)' };
+}
+
 async function followUpWA() {
   if (waRunning) return;
+  await saveWASettings();
+  
   const items = leads.filter(l => normalizePhone(l.phone));
   if (!items.length) { toast('Tidak ada nomor HP yang valid'); return; }
   
   const minS = Math.max(5, parseInt($('wa-min').value, 10) || 45);
   const maxS = Math.max(minS + 5, parseInt($('wa-max').value, 10) || 120);
   
-  // Shuffle order so the pattern looks less robotic
+  let used = await waCountToday();
+  if (used >= waSettings.dailyCap) { toast(`Batas harian tercapai (${waSettings.dailyCap}). Reset besok.`); return; }
+  
+  // Shuffle urutan supaya polanya tidak robotik
   const queue = [...items].sort(() => Math.random() - 0.5);
+  queue.length = Math.min(queue.length, waSettings.dailyCap - used);
   
   waRunning = true;
   waStop = false;
   $('btn-wa').disabled = true;
   $('btn-wa-stop').disabled = false;
-  showProgress(`WA: membuka chat 0/${queue.length}…`, 0);
   
-  for (let i = 0; i < queue.length; i++) {
-    if (waStop) break;
-    const l = queue[i];
-    const num = normalizePhone(l.phone);
-    const url = `https://wa.me/${num}?text=${encodeURIComponent(WA_TEMPLATE(l.name))}`;
-    chrome.tabs.create({ url, active: i === 0 });
-    
-    const pct = Math.round((i + 1) / queue.length * 100);
-    if (i < queue.length - 1) {
-      const delayMs = Math.round((minS + Math.random() * (maxS - minS)) * 1000);
-      showProgress(`WA: ${i + 1}/${queue.length} — chat ${l.name || ''} dibuka. Berikutnya dalam ~${Math.round(delayMs / 1000)}s`, pct);
-      await wait(delayMs);
+  try {
+    if (waSettings.mode === 'auto') {
+      // ─── Auto: ketik & kirim di WhatsApp Web ───
+      const waTab = await getWATab();
+      await wait(2500);
+      const ping = await sendToWATab(waTab.id, { type: 'WA_PING' }, 30);
+      if (!ping?.loggedIn) {
+        toast('Buka tab WhatsApp Web & scan QR dulu, lalu ulangi');
+        return;
+      }
+      
+      for (let i = 0; i < queue.length; i++) {
+        if (waStop) break;
+        const l = queue[i];
+        const num = normalizePhone(l.phone);
+        
+        // Generate (atau pakai cache) pesan personal
+        let msg = msgCache.get(l.name);
+        if (!msg) { msg = await generateMessage(l); if (msg) msgCache.set(l.name, msg); }
+        const chunks = splitMessage(msg || WA_TEMPLATE(l.name));
+        if (!chunks.length) continue;
+        
+        const url = `https://web.whatsapp.com/send?phone=${num}&text=${encodeURIComponent(chunks[0])}`;
+        showProgress(`WA: ${l.name} — buka chat & kirim… (${i + 1}/${queue.length})`, Math.round((i + 1) / queue.length * 100));
+        
+        await chrome.tabs.update(waTab.id, { url, active: false });
+        await wait(4500); // reload halaman + boot aplikasi
+        
+        const res = await sendToWATab(waTab.id, { type: 'WA_SEND', chunks: chunks.slice(1), prefill: chunks[0] });
+        if (res?.ok && res.sent > 0) await bumpWACount();
+        
+        if (i < queue.length - 1 && !waStop) {
+          const delay = Math.round((minS + Math.random() * (maxS - minS)) * 1000);
+          showProgress(`WA: ${i + 1}/${queue.length} selesai. Berikutnya (${queue[i + 1].name}) dalam ~${Math.round(delay / 1000)}s`, Math.round((i + 1) / queue.length * 100));
+          await wait(delay);
+        } else {
+          showProgress(`WA: selesai ${i + 1}/${queue.length}`, 100);
+        }
+      }
     } else {
-      showProgress(`WA: selesai ${i + 1}/${queue.length}`, 100);
+      // ─── Manual: buka chat wa.me saja ───
+      for (let i = 0; i < queue.length; i++) {
+        if (waStop) break;
+        const l = queue[i];
+        const url = `https://wa.me/${normalizePhone(l.phone)}?text=${encodeURIComponent(WA_TEMPLATE(l.name))}`;
+        chrome.tabs.create({ url, active: i === 0 });
+        const pct = Math.round((i + 1) / queue.length * 100);
+        if (i < queue.length - 1) {
+          const delayMs = Math.round((minS + Math.random() * (maxS - minS)) * 1000);
+          showProgress(`WA: ${i + 1}/${queue.length} — chat ${l.name || ''} dibuka. Berikutnya dalam ~${Math.round(delayMs / 1000)}s`, pct);
+          await wait(delayMs);
+        } else {
+          showProgress(`WA: selesai ${i + 1}/${queue.length}`, 100);
+        }
+      }
     }
+  } finally {
+    waRunning = false;
+    $('btn-wa').disabled = false;
+    $('btn-wa-stop').disabled = true;
+    hideProgress();
+    toast(waStop ? 'Follow up WA dihentikan' : `Selesai: ${queue.length} chat`);
   }
-  
-  waRunning = false;
-  $('btn-wa').disabled = false;
-  $('btn-wa-stop').disabled = true;
-  hideProgress();
-  toast(waStop ? 'Follow up WA dihentikan' : `Selesai: ${queue.length} chat dibuka`);
 }
 
 function stopFollowUpWA() {

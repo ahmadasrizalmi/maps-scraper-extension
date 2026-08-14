@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Maps Lead Scraper",
-  "version": "3.4",
+  "version": "3.5",
   "description": "Scrape business leads from Google Maps — sidebar panel with search, filters, export to Excel/Sheets",
   "permissions": [
     "activeTab",
@@ -14,7 +14,8 @@
     "https://www.google.com/maps/*",
     "https://maps.google.com/*",
     "https://*.google.com/maps/*",
-    "https://*/*"
+    "https://*/*",
+    "https://api.deepseek.com/*"
   ],
   "background": {
     "service_worker": "background.js"
@@ -38,6 +39,11 @@
         "https://*.google.com/maps/*"
       ],
       "js": ["content.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": ["https://web.whatsapp.com/*"],
+      "js": ["whatsapp.js"],
       "run_at": "document_idle"
     }
   ],

@@ -8,6 +8,7 @@ Scrape business leads from Google Maps (name, category, rating, address, phone, 
 - **Get details** — klik tiap listing → ambil detail dari panel (alamat, telepon, website) → kembali
 - **Extract emails** — cari email di website bisnis (diekstrak di side panel, bebas CORS)
 - **Follow up WhatsApp** — buka chat WA tiap lead (`wa.me`) dengan urutan acak + jeda acak anti-ban
+- **Auto-send WA via AI** — mode Auto mengetik & mengirim pesan di WhatsApp Web; pesan dipersonalisasi per bisnis oleh DeepSeek (`deepseek-v4-flash`), dipotong jadi beberapa pesan pendek seperti manusia
 - **Deduplicate** — hilangkan duplikat berdasarkan nama
 - **Filter & sort** — cari, filter rating, filter "punya phone/website/email", sort per kolom
 - **Auto-scroll** — scroll feed hasil pencarian secara otomatis (jumlah scroll adaptif)
@@ -63,6 +64,21 @@ Google Maps tab
          ekstraksi email (fetch bebas CORS — extension page)
          follow-up WhatsApp (wa.me + jeda acak)
 ```
+
+## Optimasi v3.5 (auto-send WhatsApp + AI DeepSeek)
+
+### Fitur baru
+- **Mode Auto (ketik & kirim):** content script baru `whatsapp.js` berjalan di `web.whatsapp.com`. Side panel menavigasi tab WA Web ke `/send?phone=…&text=…`, lalu `whatsapp.js` mengirim chunk pertama, mengetik sisa pesan karakter demi karakter (kecepatan manusia), dan mengirim dengan jeda acak antar chunk.
+- **Pesan personal via DeepSeek:** jika API key diisi, setiap pesan di-generate per bisnis (nama, kategori, alamat) dengan model `deepseek-v4-flash` mode non-thinking (`thinking: {type:"disabled"}`). Tanpa key → fallback template bawaan.
+- **Split teks:** pesan panjang dipecah menjadi chunk 150–300 karakter di batas kalimat — beberapa pengiriman pendek, bukan 1 pesan panjang.
+- **Batas harian** (`wa-cap`): anti-ban — berhenti otomatis setelah N kontak per hari (tersimpan per tanggal).
+- **Settings UI:** API key, nama pengirim, model, instruksi pesan, jeda antar chunk, batas harian, mode Auto/Manual — tersimpan di `chrome.storage`.
+
+### Catatan penggunaan mode Auto
+- Wajib login WhatsApp Web di tab browser (scan QR sekali).
+- Tab WA dibuat/dipakai otomatis; navigasi antar kontak terjadi di tab tersebut.
+- Nomor yang tidak terdaftar di WhatsApp dilewati (chat tidak terbuka).
+- Risiko ban tetap ada pada auto-send — gunakan jeda antar kontak yang cukup (45–120s) dan batas harian wajar.
 
 ## Optimasi v3.4 (perbaikan phone, email & fitur WhatsApp)
 

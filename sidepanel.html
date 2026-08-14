@@ -147,6 +147,56 @@
     .limit-input:focus { outline: none; background: var(--gray-200); }
     .limit-hint { font-size: 11px; color: var(--gray-500); }
     
+    /* ─── WA / AI Settings ─────────────────────────── */
+    
+    .wa-settings {
+      margin-top: 8px;
+      padding-top: 8px;
+      border-top: 0.5px solid var(--gray-200);
+    }
+    .wa-settings summary {
+      cursor: pointer;
+      font-size: 11px;
+      color: var(--gray-500);
+      font-weight: 600;
+      user-select: none;
+    }
+    .wa-settings summary:hover { color: var(--gray-900); }
+    .settings-grid {
+      display: grid;
+      gap: 8px;
+      margin-top: 8px;
+    }
+    .settings-grid label {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      font-size: 11px;
+      color: var(--gray-700);
+    }
+    .settings-grid input,
+    .settings-grid select,
+    .settings-grid textarea {
+      padding: 6px 8px;
+      background: var(--gray-100);
+      border: none;
+      border-radius: var(--radius-sm);
+      font-size: 12px;
+      color: var(--gray-900);
+      font-family: inherit;
+    }
+    .settings-grid input:focus,
+    .settings-grid select:focus,
+    .settings-grid textarea:focus {
+      outline: none;
+      background: var(--gray-200);
+    }
+    .settings-grid .inline {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    
     /* ─── Stats ──────────────────────────────────────────────── */
     
     .stats {
@@ -398,6 +448,42 @@
       <input type="number" class="limit-input" id="max-listings" value="0" min="0" placeholder="0 = all">
       <span class="limit-hint">(0 = semua)</span>
     </div>
+    <details class="wa-settings">
+      <summary>⚙️ Pengaturan WA & AI (DeepSeek)</summary>
+      <div class="settings-grid">
+        <label>DeepSeek API Key
+          <input type="password" id="wa-api-key" placeholder="sk-… (dari platform.deepseek.com)" autocomplete="off">
+        </label>
+        <label>Nama pengirim
+          <input type="text" id="wa-sender" placeholder="mis: Budi dari Homestay Bening">
+        </label>
+        <label>Model AI
+          <select id="wa-model">
+            <option value="deepseek-v4-flash">deepseek-v4-flash (cepat & murah)</option>
+            <option value="deepseek-v4-pro">deepseek-v4-pro (lebih pintar)</option>
+          </select>
+        </label>
+        <label>Instruksi pesan (opsional)
+          <textarea id="wa-instruction" rows="2" placeholder="mis: tawarkan paket homestay murah, ajak berkunjung ke lokasi"></textarea>
+        </label>
+        <label>Jeda antar potongan pesan (detik)
+          <span class="inline">
+            <input type="number" id="wa-chunk-min" min="1" value="3" class="limit-input">
+            <span class="wa-sep">–</span>
+            <input type="number" id="wa-chunk-max" min="2" value="8" class="limit-input">
+          </span>
+        </label>
+        <label>Batas kontak per hari
+          <input type="number" id="wa-cap" min="1" value="30" class="limit-input">
+        </label>
+        <label>Mode kirim
+          <select id="wa-mode">
+            <option value="auto">Auto — ketik & kirim di WhatsApp Web</option>
+            <option value="manual">Manual — buka chat saja</option>
+          </select>
+        </label>
+      </div>
+    </details>
   </div>
   
   <!-- Stats -->
