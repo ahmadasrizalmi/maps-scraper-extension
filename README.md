@@ -6,7 +6,8 @@ Scrape business leads from Google Maps (name, category, rating, address, phone, 
 
 - **Scrape Listing** — ambil semua hasil pencarian dari sidebar Google Maps
 - **Get details** — klik tiap listing → ambil detail dari panel (alamat, telepon, website) → kembali
-- **Extract emails** — scan homepage + halaman kontak website bisnis untuk menemukan email
+- **Extract emails** — cari email di website bisnis (diekstrak di side panel, bebas CORS)
+- **Follow up WhatsApp** — buka chat WA tiap lead (`wa.me`) dengan urutan acak + jeda acak anti-ban
 - **Deduplicate** — hilangkan duplikat berdasarkan nama
 - **Filter & sort** — cari, filter rating, filter "punya phone/website/email", sort per kolom
 - **Auto-scroll** — scroll feed hasil pencarian secara otomatis (jumlah scroll adaptif)
@@ -27,11 +28,12 @@ Scrape business leads from Google Maps (name, category, rating, address, phone, 
 3. Centang opsi yang diinginkan:
    - **Auto-scroll** — scroll sampai semua hasil termuat (perlu jika ada > 20 hasil)
    - **Get details** — ambil alamat/telepon/website dari panel detail tiap bisnis
-   - **Extract emails** — cari email di website bisnis (membutuhkan koneksi internet & waktu lebih lama)
+   - **Extract emails** — cari email di website bisnis (berjalan setelah scrape, di side panel)
    - **Deduplicate** — gabungkan hasil duplikat
 4. Set **Max listings** jika ingin batasi jumlah (0 = semua)
 5. Klik **Scrape Listings** dan tunggu sampai selesai
-6. Export via **CSV** atau **Sheets** (paste `Ctrl+V` di Google Sheets)
+6. Export via **CSV** atau **Sheets** (paste `Ctrl+V` di Google Sheets), atau
+7. **Follow up WA** — atur jeda acak antar chat (detik), klik **Follow up WA**; setiap chat dibuka di tab baru secara acak & berjeda. **Stop** untuk menghentikan antrian.
 
 > **Catatan:** untuk hasil yang lebih banyak, scroll manual dulu sampai feed menunjukkan semua hasil, lalu matikan opsi Auto-scroll.
 
@@ -53,13 +55,31 @@ Google Maps tab
   │  content.js (disuntik di google.com/maps/*)
   │    1. autoScroll()          → scroll feed hasil
   │    2. scrapeListings()      → baca kartu [role="article"] dari DOM
-  │    3. processOneListing()   → klik tiap listing, baca panel detail, Back
-  │    4. extractEmail()        → fetch website bisnis, cari email
+  │    3. processOneListing()   → klik tiap listing, baca panel detail (phone robust), Back
   │       │
-  │       ▼ chrome.runtime.sendMessage (PROGRESS)
+  │       ▼ chrome.runtime.sendMessage (PROGRESS + hasil)
   └──► sidepanel (sidepanel.html + sidepanel.js)
          render tabel, filter, sort, export CSV/Sheets
+         ekstraksi email (fetch bebas CORS — extension page)
+         follow-up WhatsApp (wa.me + jeda acak)
 ```
+
+## Optimasi v3.4 (perbaikan phone, email & fitur WhatsApp)
+
+### Perbaikan nomor HP yang gagal di-scrape
+- Google Maps meng-obfuscate digit nomor HP dengan karakter unicode private-use (rentang U+E000–U+F8FF) — glyph terlihat angka tapi bukan karakter `0-9`, sehingga regex lama gagal cocok. Sekarang karakter PUA **di-strip dulu** sebelum parsing.
+- Nomor yang tersembunyi di balik tombol kini di-**klik untuk reveal**, lalu di-parse ulang (DOM di-query ulang setelah klik).
+- Fallback terakhir: scan teks panel detail/dialog untuk pola nomor (minimal 9 digit).
+
+### Perbaikan email yang selalu gagal (bug arsitektur)
+- **Akar masalah:** `fetch()` dari content script tunduk pada kebijakan CORS halaman Google Maps. Host permission `https://*/*` **tidak** melewati CORS untuk content script — hanya untuk halaman extension. Website bisnis yang tidak mengirim header CORS → request ditolak → email selalu kosong.
+- **Solusi:** ekstraksi email dipindah ke **side panel** (extension page) yang fetch-nya bebas CORS. Tetap paralel (6 worker), cache per-domain, lazy probe halaman `/contact` dll, strip `<script>/<style>`.
+
+### Fitur follow-up WhatsApp (anti-ban)
+- **Kolom WA** di tabel + tombol **Follow up WA** untuk semua lead.
+- Nomor dinormalisasi ke format internasional (`08xx…` → `628xx…`) — ikut diekspor di kolom **WhatsApp** pada CSV/Sheets.
+- Antrian membuka chat `wa.me` dengan **urutan di-acak (shuffle)** dan **jeda acak** antar chat (default 45–120 detik, bisa diatur) supaya polanya tidak terlihat robotik. Tombol **Stop** untuk menghentikan.
+- **Penting:** fitur ini hanya *membuka chat* — pengiriman pesan tetap manual oleh user. Ini jauh lebih aman dari ban dibanding auto-send. Untuk volume besar tetap disarankan jeda lebih lama dan batasi jumlah per hari.
 
 ## Optimasi v3.3 (riwayat perubahan)
 

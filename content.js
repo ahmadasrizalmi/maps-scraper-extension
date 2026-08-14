@@ -1,6 +1,6 @@
-// Maps Lead Scraper — Content Script v3.3 (optimized)
-// Changes: MutationObserver-based waits (~2-3x faster detail scraping),
-// adaptive auto-scroll, parallel + cached email extraction, throttled progress.
+// Maps Lead Scraper — Content Script v3.4
+// v3.4: robust phone scraping (PUA-char stripping + click-to-reveal),
+// email extraction moved to side panel (content-script fetch is CORS-blocked).
 
 (() => {
   'use strict';
@@ -123,7 +123,7 @@
 
   // ─── Scrape Detail Panel ──────────────────────────────────────────
   
-  function scrapeDetailPanel() {
+  async function scrapeDetailPanel() {
     const d = {};
     
     // Name: .DUwDvf is the business name in detail panel
@@ -149,14 +149,8 @@
       d.address = clean(addrEl.getAttribute('aria-label')?.replace(/^Address:\s*/i,'') || addrEl.textContent);
     }
     
-    // Phone: data-item-id contains "phone"
-    const phoneEl = document.querySelector('[data-item-id*="phone"] button') || 
-                    document.querySelector('[data-item-id*="phone"]');
-    if (phoneEl) {
-      const raw = phoneEl.getAttribute('aria-label')?.replace(/^Phone:\s*/i,'') || phoneEl.textContent;
-      const m = raw.match(/[\d\s\-+()]{8,}/);
-      if (m) d.phone = m[0].trim();
-    }
+    // Phone: robust extraction (see scrapePhone below)
+    d.phone = await scrapePhone();
     
     // Website: data-item-id="authority"
     const webEl = document.querySelector('[data-item-id="authority"] a') || 
@@ -170,6 +164,56 @@
     }
     
     return d;
+  }
+
+  // ─── Phone: robust extraction with click-to-reveal ────────────────
+  // Google Maps obfuscates digits with private-use unicode chars and
+  // sometimes hides the number behind a button. Strategy:
+  //  1. aria-label (real digits when present)
+  //  2. textContent with PUA chars stripped
+  //  3. click the phone button to reveal, then retry
+  //  4. scan the detail panel / dialog text as last resort
+
+  function parsePhone(raw) {
+    if (!raw) return '';
+    const text = String(raw).replace(/[\ue000-\uf8ff]/g, '').replace(/\s+/g, ' ').trim();
+    const m = text.match(/[\d\s\-+()]{8,}/);
+    return m ? m[0].trim() : '';
+  }
+
+  async function scrapePhone() {
+    const find = () => document.querySelector('[data-item-id*="phone"] button') ||
+                         document.querySelector('[data-item-id*="phone"]');
+    let el = find();
+    if (!el) return '';
+
+    let num = parsePhone(el.getAttribute('aria-label')?.replace(/^Phone:\s*/i, ''));
+    if (!num) num = parsePhone(el.textContent);
+
+    if (!num && el.tagName === 'BUTTON') {
+      // Click to reveal the full number, then re-query (DOM may swap)
+      try { el.click(); } catch (e) {}
+      await wait(500);
+      // Close any action sheet that the click may have opened
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+      el = find();
+      if (el) {
+        num = parsePhone(el.getAttribute('aria-label')?.replace(/^Phone:\s*/i, ''));
+        if (!num) num = parsePhone(el.textContent);
+      }
+    }
+
+    // Last resort: scan detail panel / dialog text for a phone-like pattern
+    if (!num) {
+      const sources = [document.querySelector('main[aria-label]'), document.querySelector('[role="dialog"]')];
+      for (const s of sources) {
+        if (!s) continue;
+        const t = clean(s.textContent || '');
+        const m = t.match(/\+?\d[\d\s\-()]{8,}\d/);
+        if (m && m[0].replace(/\D/g, '').length >= 9) { num = m[0].trim(); break; }
+      }
+    }
+    return num;
   }
 
   // ─── Click listing → scrape detail → go back ──────────────────────
@@ -205,7 +249,7 @@
       }
     }
     
-    const details = scrapeDetailPanel();
+    const details = await scrapeDetailPanel();
     
     // Back — wait for the detail panel to actually disappear instead of
     // a fixed 800ms. Falls back after 2.5s max.
@@ -238,54 +282,10 @@
     return count;
   }
 
-  // ─── Extract email from website (cached + lazy + parallel) ────────
-  
-  const emailCache = new Map(); // origin -> emails[]
-
-  async function extractEmail(url) {
-    if (!url?.startsWith('http')) return [];
-    let origin;
-    try { origin = new URL(url).origin; } catch(e) { return []; }
-    if (emailCache.has(origin)) return emailCache.get(origin);
-    
-    const emails = new Set();
-    
-    // Strip scripts/styles/comments first to kill false positives
-    const parse = html => {
-      const text = html
-        .replace(/<script[\s\S]*?<\/script>/gi, ' ')
-        .replace(/<style[\s\S]*?<\/style>/gi, ' ')
-        .replace(/<!--[\s\S]*?-->/g, ' ');
-      const matches = text.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g) || [];
-      for (const e of matches) {
-        const l = e.toLowerCase();
-        if (l.includes('example.com') || l.includes('sentry.io') || l.includes('w3.org') ||
-            l.includes('schema.org') || l.includes('googleapis') || l.includes('gstatic') ||
-            l.includes('noreply') || /\.(png|jpe?g|gif|webp|svg|css|js)$/.test(l) || l.length >= 50) continue;
-        emails.add(l);
-      }
-    };
-    
-    const fetchPage = async p => {
-      try {
-        const r = await fetch(p, { mode:'cors', credentials:'omit', signal: AbortSignal.timeout(3500) });
-        if (!r.ok) return false;
-        parse(await r.text());
-        return true;
-      } catch(e) { return false; }
-    };
-    
-    // Homepage first; only probe contact pages if homepage has no email.
-    await fetchPage(url);
-    if (emails.size === 0) {
-      const contactPages = ['/contact', '/about', '/kontak', '/hubungi'];
-      await Promise.all(contactPages.map(p => fetchPage(origin + p)));
-    }
-    
-    const result = [...emails];
-    emailCache.set(origin, result);
-    return result;
-  }
+  // Email extraction now runs in the side panel (extension page).
+  // Fetch from a content script is subject to the page's CORS policy,
+  // which is why emails never came through — host permissions only
+  // bypass CORS for extension contexts (side panel / service worker).
 
   // ─── Deduplicate ──────────────────────────────────────────────────
   
@@ -376,32 +376,18 @@
           }
           if (shouldCancel) { sendResponse({ cancelled:true }); return; }
           
-          // Step 4: Emails — 6 concurrent workers instead of strictly serial.
-          if (opts.emails) {
-            const todo = leads.filter(l => l.website && !l.email);
-            let next = 0, done = 0, found = 0;
-            const worker = async () => {
-              while (!shouldCancel) {
-                const i = next++;
-                if (i >= todo.length) return;
-                const emails = await extractEmail(todo[i].website);
-                if (emails.length) { todo[i].email = emails[0]; found++; }
-                done++;
-                emitProgress('emails', Math.round(done/todo.length*100), `Emails: ${found} found (${done}/${todo.length})`);
-              }
-            };
-            await Promise.all(Array.from({ length: Math.min(6, todo.length) }, worker));
-          }
+          // Step 4 (emails) is handled by the side panel after this response —
+          // extension pages are not CORS-bound, so fetch() actually works there.
           
           // Step 5: Dedup
           if (opts.dedup) leads = deduplicate(leads);
           
-          sendResponse({ success:true, leads, elapsed: ((Date.now()-startTime)/1000).toFixed(1) });
+          sendResponse({ success:true, leads, elapsed: ((Date.now()-startTime)/1000).toFixed(1), emailsRequested: !!opts.emails });
         } catch(e) { sendResponse({ error: e.message }); }
       })();
       return true;
     }
   });
 
-  console.log('[Maps Lead Scraper] Content script v3.3 loaded — optimized waits, parallel emails');
+  console.log('[Maps Lead Scraper] Content script v3.4 loaded — robust phone, emails via side panel');
 })();

@@ -266,6 +266,8 @@
     .cell-rating { color: var(--orange); font-weight: 600; }
     .cell-phone a { color: var(--blue); text-decoration: none; }
     .cell-phone a:hover { text-decoration: underline; }
+    .cell-wa a.wa-link { color: var(--green); text-decoration: none; font-weight: 700; }
+    .cell-wa a.wa-link:hover { text-decoration: underline; }
     .cell-email a { color: var(--red); text-decoration: none; font-size: 10px; }
     
     .empty-state { text-align: center; padding: 48px 24px; color: var(--gray-500); }
@@ -285,6 +287,17 @@
       gap: 6px;
       flex-wrap: wrap;
     }
+    .wa-row {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: wrap;
+      padding-bottom: 8px;
+      margin-bottom: 6px;
+      border-bottom: 0.5px solid var(--gray-200);
+    }
+    .wa-sep { color: var(--gray-500); font-size: 12px; }
     .btn { 
       padding: 8px 10px;
       border: none;
@@ -454,6 +467,7 @@
             <th data-sort="category">Category</th>
             <th data-sort="rating">Rating</th>
             <th data-sort="phone">Phone</th>
+            <th>WA</th>
             <th data-sort="email">Email</th>
           </tr>
         </thead>
@@ -475,6 +489,17 @@
   
   <!-- Footer -->
   <div class="footer">
+    <div class="wa-row">
+      <button class="btn btn-green" id="btn-wa" disabled>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+        Follow up WA
+      </button>
+      <button class="btn btn-gray" id="btn-wa-stop" disabled>Stop</button>
+      <input type="number" class="limit-input" id="wa-min" value="45" min="5" title="Jeda minimal antar chat (detik)">
+      <span class="wa-sep">–</span>
+      <input type="number" class="limit-input" id="wa-max" value="120" min="10" title="Jeda maksimal antar chat (detik)">
+      <span class="limit-hint">jeda acak antar chat (detik)</span>
+    </div>
     <button class="btn btn-gray" id="btn-save" disabled>
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
       Save

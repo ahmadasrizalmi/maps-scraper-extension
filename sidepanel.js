@@ -1,6 +1,6 @@
-// Maps Lead Scraper — Side Panel v3.3 (optimized)
-// Changes: O(1) index lookups (WeakMap), debounced search, rAF-throttled
-// progress, revoked object URLs, simplified: Name/Category/Rating/Address/Phone/Website/Email
+// Maps Lead Scraper — Side Panel v3.4
+// v3.4: email extraction moved here (extension page fetch = no CORS),
+// WhatsApp follow-up queue with random human-like delays.
 // Export: CSV + Google Sheets (clipboard paste)
 
 let leads = [];
@@ -11,9 +11,24 @@ let sortDir = 'asc';
 const $ = id => document.getElementById(id);
 const leadIndex = new WeakMap(); // lead object -> original index (kills O(n) indexOf)
 
+// Pesan default untuk follow-up WhatsApp — bisa diedit sesuai kebutuhan
+const WA_TEMPLATE = (name) => `Halo ${name || 'admin'}, saya ingin menanyakan produk/layanan Anda. Terima kasih.`;
+
 function indexLeads() {
   leadIndex.clear();
   leads.forEach((l, i) => leadIndex.set(l, i));
+}
+
+// ─── Phone normalization (Indonesia-first) ──────────────────────────
+
+function normalizePhone(p) {
+  if (!p) return '';
+  let d = String(p).replace(/[^\d+]/g, '');
+  if (d.startsWith('+')) d = d.slice(1);
+  if (d.startsWith('0')) d = '62' + d.slice(1);          // 08xx… → 628xx…
+  else if (d.length >= 9 && d.length <= 12 && d.startsWith('8')) d = '62' + d; // 8xx… → 628xx…
+  if (d.length < 9 || d.length > 15) return '';
+  return d;
 }
 
 // ─── Init ──────────────────────────────────────────────────────────
@@ -66,6 +81,7 @@ function updateStats() {
   $('btn-save').disabled = !has;
   $('btn-csv').disabled = !has;
   $('btn-sheets').disabled = !has;
+  $('btn-wa').disabled = !has;
 }
 
 function showProgress(text, percent, eta) {
@@ -143,12 +159,14 @@ function render() {
   
   tbody.innerHTML = filteredLeads.map((l) => {
     const i = (leadIndex.get(l) ?? 0) + 1;
+    const wa = normalizePhone(l.phone);
     return `<tr>
       <td>${i}</td>
       <td class="cell-name" title="${esc(l.name)}">${esc(l.name || '-')}</td>
       <td title="${esc(l.category)}">${esc(l.category || '-')}</td>
       <td class="cell-rating">${l.rating ? `★${l.rating}` : '-'}</td>
       <td class="cell-phone">${l.phone ? `<a href="tel:${l.phone}">${esc(l.phone)}</a>` : '-'}</td>
+      <td class="cell-wa">${wa ? `<a class="wa-link" href="https://wa.me/${wa}?text=${encodeURIComponent(WA_TEMPLATE(l.name))}" target="_blank" rel="noopener" title="Chat WhatsApp">WA</a>` : '-'}</td>
       <td class="cell-email">${l.email ? `<a href="mailto:${l.email}">${esc(l.email.split('@')[1] || l.email)}</a>` : '-'}</td>
     </tr>`;
   }).join('');
@@ -157,6 +175,122 @@ function render() {
 }
 
 function esc(s) { return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+// ─── Email extraction (runs HERE — extension pages are not CORS-bound) ──
+
+const emailCache = new Map(); // origin -> emails[]
+
+async function extractEmailsFromWebsites(leads, onProgress) {
+  const todo = leads.filter(l => l.website && !l.email);
+  if (!todo.length) return 0;
+  
+  let next = 0, done = 0, found = 0;
+  
+  const parseHtml = (html, set) => {
+    const text = html
+      .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+      .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+      .replace(/<!--[\s\S]*?-->/g, ' ');
+    const matches = text.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g) || [];
+    for (const e of matches) {
+      const l = e.toLowerCase();
+      if (l.includes('example.com') || l.includes('sentry.io') || l.includes('w3.org') ||
+          l.includes('schema.org') || l.includes('googleapis') || l.includes('gstatic') ||
+          l.includes('noreply') || /\.(png|jpe?g|gif|webp|svg|css|js)$/.test(l) || l.length >= 50) continue;
+      set.add(l);
+    }
+  };
+  
+  const fetchPage = async (p, set) => {
+    try {
+      const r = await fetch(p, { mode: 'cors', credentials: 'omit', signal: AbortSignal.timeout(3500) });
+      if (!r.ok) return false;
+      parseHtml(await r.text(), set);
+      return true;
+    } catch (e) { return false; }
+  };
+  
+  const worker = async () => {
+    while (true) {
+      const i = next++;
+      if (i >= todo.length) return;
+      const lead = todo[i];
+      const emails = new Set();
+      try {
+        const origin = new URL(lead.website).origin;
+        if (emailCache.has(origin)) {
+          for (const e of emailCache.get(origin)) emails.add(e);
+        } else {
+          await fetchPage(lead.website, emails);
+          if (emails.size === 0) {
+            await Promise.all(['/contact', '/about', '/kontak', '/hubungi'].map(p => fetchPage(origin + p, emails)));
+          }
+          emailCache.set(origin, [...emails]);
+        }
+      } catch (e) {}
+      if (emails.size) { lead.email = emails.values().next().value; found++; }
+      done++;
+      if (onProgress) onProgress(done, todo.length, found);
+    }
+  };
+  
+  await Promise.all(Array.from({ length: Math.min(6, todo.length) }, worker));
+  return found;
+}
+
+// ─── WhatsApp follow-up queue (anti-ban: shuffle + random delay) ─────
+
+let waRunning = false;
+let waStop = false;
+
+const wait = ms => new Promise(r => setTimeout(r, ms));
+
+async function followUpWA() {
+  if (waRunning) return;
+  const items = leads.filter(l => normalizePhone(l.phone));
+  if (!items.length) { toast('Tidak ada nomor HP yang valid'); return; }
+  
+  const minS = Math.max(5, parseInt($('wa-min').value, 10) || 45);
+  const maxS = Math.max(minS + 5, parseInt($('wa-max').value, 10) || 120);
+  
+  // Shuffle order so the pattern looks less robotic
+  const queue = [...items].sort(() => Math.random() - 0.5);
+  
+  waRunning = true;
+  waStop = false;
+  $('btn-wa').disabled = true;
+  $('btn-wa-stop').disabled = false;
+  showProgress(`WA: membuka chat 0/${queue.length}…`, 0);
+  
+  for (let i = 0; i < queue.length; i++) {
+    if (waStop) break;
+    const l = queue[i];
+    const num = normalizePhone(l.phone);
+    const url = `https://wa.me/${num}?text=${encodeURIComponent(WA_TEMPLATE(l.name))}`;
+    chrome.tabs.create({ url, active: i === 0 });
+    
+    const pct = Math.round((i + 1) / queue.length * 100);
+    if (i < queue.length - 1) {
+      const delayMs = Math.round((minS + Math.random() * (maxS - minS)) * 1000);
+      showProgress(`WA: ${i + 1}/${queue.length} — chat ${l.name || ''} dibuka. Berikutnya dalam ~${Math.round(delayMs / 1000)}s`, pct);
+      await wait(delayMs);
+    } else {
+      showProgress(`WA: selesai ${i + 1}/${queue.length}`, 100);
+    }
+  }
+  
+  waRunning = false;
+  $('btn-wa').disabled = false;
+  $('btn-wa-stop').disabled = true;
+  hideProgress();
+  toast(waStop ? 'Follow up WA dihentikan' : `Selesai: ${queue.length} chat dibuka`);
+}
+
+function stopFollowUpWA() {
+  waStop = true;
+  $('btn-wa-stop').disabled = true;
+  toast('Menghentikan antrian WA…');
+}
 
 // ─── Scrape (unified flow) ─────────────────────────────────────────
 
@@ -174,7 +308,7 @@ async function scrape() {
   setRunning(true);
   showProgress('Starting...', 0);
   
-  chrome.tabs.sendMessage(tab.id, { type: 'SCRAPE', options }, (response) => {
+  chrome.tabs.sendMessage(tab.id, { type: 'SCRAPE', options }, async (response) => {
     setRunning(false);
     hideProgress();
     
@@ -200,6 +334,18 @@ async function scrape() {
     
     toast(`${leads.length} leads scraped${response.elapsed ? ` in ${response.elapsed}s` : ''}`);
     saveLeads();
+    
+    // Email extraction runs here (extension page fetch = CORS-free)
+    if (response.emailsRequested && leads.some(l => l.website)) {
+      showProgress('Mencari email…', 0);
+      const found = await extractEmailsFromWebsites(leads, (d, t, f) => {
+        showProgress(`Email: ${f} ditemukan (${d}/${t})`, Math.round(d / t * 100));
+      });
+      hideProgress();
+      render();
+      saveLeads();
+      toast(`${found} email ditemukan dari ${leads.filter(l => l.website).length} website`);
+    }
   });
 }
 
@@ -226,8 +372,8 @@ async function loadLeads() {
 
 function exportCSV() {
   if (!leads.length) return;
-  const h = ['No','Name','Category','Rating','Address','Phone','Website','Email','URL'];
-  const rows = leads.map((l,i) => [i+1,q(l.name),q(l.category),l.rating||'',q(l.address),q(l.phone),q(l.website),q(l.email),q(l.url)]);
+  const h = ['No','Name','Category','Rating','Address','Phone','WhatsApp','Website','Email','URL'];
+  const rows = leads.map((l,i) => [i+1,q(l.name),q(l.category),l.rating||'',q(l.address),q(l.phone),q(normalizePhone(l.phone)),q(l.website),q(l.email),q(l.url)]);
   download('\ufeff'+[h.join(',')].concat(rows.map(r=>r.join(','))).join('\n'), `leads_${date()}.csv`, 'text/csv');
   toast('CSV exported');
 }
@@ -236,8 +382,8 @@ function exportCSV() {
 
 function exportSheets() {
   if (!leads.length) return;
-  const h = ['No','Name','Category','Rating','Address','Phone','Website','Email','URL'];
-  const rows = leads.map((l,i) => [i+1, l.name||'', l.category||'', l.rating||'', l.address||'', l.phone||'', l.website||'', l.email||'', l.url||'']);
+  const h = ['No','Name','Category','Rating','Address','Phone','WhatsApp','Website','Email','URL'];
+  const rows = leads.map((l,i) => [i+1, l.name||'', l.category||'', l.rating||'', l.address||'', l.phone||'', normalizePhone(l.phone)||'', l.website||'', l.email||'', l.url||'']);
   const tsv = [h.join('\t')].concat(rows.map(r=>r.join('\t'))).join('\n');
   
   navigator.clipboard.writeText(tsv).then(() => {
@@ -283,6 +429,9 @@ $('btn-load').addEventListener('click', loadLeads);
 $('btn-csv').addEventListener('click', exportCSV);
 $('btn-sheets').addEventListener('click', exportSheets);
 $('btn-open-maps').addEventListener('click', () => chrome.tabs.create({ url: 'https://www.google.com/maps' }));
+
+$('btn-wa').addEventListener('click', followUpWA);
+$('btn-wa-stop').addEventListener('click', stopFollowUpWA);
 
 // Debounced search — rebuild the table at most every 150ms while typing
 let searchTimer = null;

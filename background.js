@@ -1,4 +1,4 @@
-// Background service worker — Maps Lead Scraper v3.3 (optimized)
+// Background service worker — Maps Lead Scraper v3.4
 // Side panel lifecycle + message forwarding
 // Note: removed the dead onMessage listener that held message channels
 // open (it returned true without ever calling sendResponse).
@@ -35,4 +35,4 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
 // Progress messages from content script are received directly by the
 // side panel's own chrome.runtime.onMessage listener — nothing to relay.
 
-console.log('[Maps Lead Scraper] Background v3.3 loaded');
+console.log('[Maps Lead Scraper] Background v3.4 loaded');
